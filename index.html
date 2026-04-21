@@ -210,7 +210,7 @@
   <div class="controls">
     <div class="field">
       <label>API Kood</label>
-      <input type="text" id="apiCode" value="oI4goD8pdKO1N2vEJ3RWpGjddYiikDhI" autocomplete="off" spellcheck="false">
+      <input type="text" id="apiCode" value="" autocomplete="off" spellcheck="false" placeholder="sisesta API kood">
     </div>
     <div class="field">
       <label>Voore</label>
@@ -260,8 +260,14 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.8 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.9 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
+
+    const savedCode = localStorage.getItem("metrix_api_code");
+    if (savedCode) {
+      document.getElementById("apiCode").value = savedCode;
+      loadData();
+    }
 
     function setProgress(pct, label) {
       document.getElementById("progressFill").style.width = pct + "%";
@@ -365,6 +371,7 @@
         if (rounds.length === 0) {
           showError("Kehtivaid voore ei leitud.");
         } else {
+          localStorage.setItem("metrix_api_code", code);
           displayResults(rounds);
         }
       } catch (e) {
