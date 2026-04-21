@@ -260,7 +260,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.9 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.10 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const savedCode = localStorage.getItem("metrix_api_code");
@@ -307,6 +307,7 @@
 
         const BATCH = 5;
         const rounds = [];
+        let myUserID = null;
 
         for (let i = 0; i < toFetch.length; i += BATCH) {
           const batch = toFetch.slice(i, i + BATCH);
@@ -321,11 +322,12 @@
           for (const data of results) {
             if (!data || !data.Competition) continue;
 
-            // Results live inside Competition; Results[0] is always the API key's owner
             const compResults = data.Competition.Results;
             if (!compResults || !compResults.length) continue;
 
-            const player = compResults[0];
+            // On first valid round, learn the UserID from Results[0]
+            if (myUserID === null) myUserID = String(compResults[0].UserID);
+            const player = compResults.find(r => String(r.UserID) === myUserID);
             if (!player) continue;
 
             // Condition 3: DNF === null
