@@ -309,7 +309,18 @@
             if (!player) continue;
             if (player.DNF) continue;
             if (!player.Sum || Number(player.Sum) === 0) continue;
-            if (!player.PlayerResults || player.PlayerResults.length === 0) continue;
+
+            // Real format: array of hole objects {Result,Diff,BUE,GRH,ICP,...}
+            // Unplayed rounds have [] for every hole — filter those out
+            const pr = player.PlayerResults || [];
+            const validHoles = pr.filter(h => h && typeof h === "object" && !Array.isArray(h));
+            if (validHoles.length === 0) continue;
+
+            // Compute per-hole stats from PlayerResults (fields are strings "0"/"1")
+            const totalHoles = validHoles.length;
+            const bue = validHoles.filter(h => h.BUE === "1").length;
+            const grh = validHoles.filter(h => h.GRH === "1").length;
+            const icp = validHoles.filter(h => h.ICP === "1").length;
 
             rounds.push({
               date:   data.Competition.Date || "",
@@ -318,6 +329,10 @@
               sum:    Number(player.Sum),
               diff:   Number(player.Diff),
               place:  player.Place,
+              holes:  totalHoles,
+              bue,
+              grh,
+              icp,
             });
           }
 
