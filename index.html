@@ -179,7 +179,31 @@
     td.good { color: var(--green); }
     td.bad  { color: var(--red); }
     td.zero { color: var(--muted); }
-    td.course { color: var(--muted); font-size: 0.8rem; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    td.course { color: var(--accent); font-size: 0.8rem; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+    td.course:hover { text-decoration: underline; }
+
+    #filterBar {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      background: var(--surface);
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      font-size: 0.85rem;
+    }
+    #filterBar span { flex: 1; color: var(--accent); font-weight: 600; }
+    #filterBar button {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 4px 12px;
+      border-radius: 5px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+    #filterBar button:hover { border-color: var(--accent); color: var(--text); }
 
     #results { display: none; }
 
@@ -232,6 +256,11 @@
   <div id="errorMsg"></div>
 
   <div id="results">
+    <div id="filterBar">
+      <span id="filterLabel"></span>
+      <button onclick="clearFilter()">Kõik rajad</button>
+    </div>
+
     <div id="statsGrid"></div>
 
     <div class="section">
@@ -260,7 +289,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.10 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.11 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const savedCode = localStorage.getItem("metrix_api_code");
@@ -386,6 +415,9 @@
       }
     }
 
+    let allRounds = [];
+    let activeFilter = null;
+
     function diffClass(v) {
       if (v < 0) return "good";
       if (v > 0) return "bad";
@@ -400,48 +432,83 @@
       return (n > 0 ? "+" : "") + (decimals !== undefined ? v.toFixed(decimals) : n);
     }
 
+    function setFilter(course) {
+      activeFilter = course;
+      renderView();
+    }
+
+    function clearFilter() {
+      activeFilter = null;
+      renderView();
+    }
+
     function displayResults(rounds) {
-      // Chronological for chart/averages, newest-first for table
-      const chrono = [...rounds].sort((a, b) => a.date.localeCompare(b.date));
+      allRounds = rounds;
+      activeFilter = null;
+      document.getElementById("results").style.display = "block";
+      renderView();
+    }
+
+    function renderView() {
+      const filtered = activeFilter
+        ? allRounds.filter(r => r.course === activeFilter)
+        : allRounds;
+
+      // Filter bar
+      const bar = document.getElementById("filterBar");
+      if (activeFilter) {
+        document.getElementById("filterLabel").textContent =
+          activeFilter + " \u00b7 " + filtered.length + " vooru";
+        bar.style.display = "flex";
+      } else {
+        bar.style.display = "none";
+      }
+
+      // Chronological for chart/stats
+      const chrono = [...filtered].sort((a, b) => a.date.localeCompare(b.date));
       const diffs = chrono.map(r => r.diff);
 
       const best  = Math.min(...diffs);
       const worst = Math.max(...diffs);
       const avg   = diffs.reduce((s, d) => s + d, 0) / diffs.length;
-      const last10diffs = diffs.slice(-10);
+      const last10diffs = activeFilter ? diffs : diffs.slice(-10);
       const avg10 = last10diffs.reduce((s, d) => s + d, 0) / last10diffs.length;
 
-      // Stats cards
-      const grid = document.getElementById("statsGrid");
-      const cards = [
-        { label: "Voore kokku",      value: rounds.length,     cls: "neutral", raw: null },
-        { label: "Parim voor",       value: fmtDiff(best),     cls: diffClass(best) },
-        { label: "Halvim voor",      value: fmtDiff(worst),    cls: diffClass(worst) },
-        { label: "Keskmine diff",    value: fmtDiff(avg, 1),   cls: diffClass(avg) },
-        { label: "Viimane 10 (avg)", value: fmtDiff(avg10, 1), cls: diffClass(avg10) },
+      const cards = activeFilter ? [
+        { label: "Mängitud kordi",  value: filtered.length,    cls: "neutral" },
+        { label: "Parim voor",      value: fmtDiff(best),      cls: diffClass(best) },
+        { label: "Halvim voor",     value: fmtDiff(worst),     cls: diffClass(worst) },
+        { label: "Keskmine diff",   value: fmtDiff(avg, 1),    cls: diffClass(avg) },
+      ] : [
+        { label: "Voore kokku",      value: allRounds.length,   cls: "neutral" },
+        { label: "Parim voor",       value: fmtDiff(best),      cls: diffClass(best) },
+        { label: "Halvim voor",      value: fmtDiff(worst),     cls: diffClass(worst) },
+        { label: "Keskmine diff",    value: fmtDiff(avg, 1),    cls: diffClass(avg) },
+        { label: "Viimane 10 (avg)", value: fmtDiff(avg10, 1),  cls: diffClass(avg10) },
       ];
-      grid.innerHTML = cards.map(c => `
+
+      document.getElementById("statsGrid").innerHTML = cards.map(c => `
         <div class="card">
           <div class="card-label">${c.label}</div>
           <div class="card-value ${c.cls}">${c.value}</div>
         </div>
       `).join("");
 
-      // Table: newest first
-      const tbody = document.getElementById("roundsBody");
-      tbody.innerHTML = chrono.slice().reverse().map(r => {
+      // Table: newest first; course cell is clickable
+      document.getElementById("roundsBody").innerHTML = chrono.slice().reverse().map(r => {
         const dc = diffClass(r.diff);
+        const courseCell = activeFilter
+          ? `<td class="course" style="cursor:default;color:var(--muted)">${r.course}</td>`
+          : `<td class="course" onclick="setFilter(${JSON.stringify(r.course)})">${r.course}</td>`;
         return `<tr>
           <td>${r.date}</td>
-          <td class="course">${r.course}</td>
+          ${courseCell}
           <td class="mono">${r.sum}</td>
           <td class="mono ${dc}">${fmtDiff(r.diff)}</td>
           <td class="mono">${r.place != null ? r.place : "–"}</td>
         </tr>`;
       }).join("");
 
-      // Show results before drawing chart so clientWidth is non-zero
-      document.getElementById("results").style.display = "block";
       console.log("drawing chart with", chrono.length, "rounds");
       drawChart(chrono);
     }
