@@ -305,15 +305,21 @@
           for (const data of results) {
             if (!data || !data.Competition) continue;
 
+            // Condition 1: player found
             const player = (data.Results || []).find(r => r.UserID === PLAYER_ID);
             if (!player) continue;
-            if (player.DNF) continue;
-            if (!player.Sum || Number(player.Sum) === 0) continue;
 
-            // Real format: array of hole objects {Result,Diff,BUE,GRH,ICP,...}
-            // Unplayed rounds have [] for every hole — filter those out
+            // Condition 3: DNF === null (not "1" or any other truthy value)
+            if (player.DNF !== null && player.DNF !== undefined) continue;
+
+            // Condition 2: Sum > 0
+            if (!(Number(player.Sum) > 0)) continue;
+
+            // Condition 4: PlayerResults has at least one hole object.
+            // Some rounds have mixed format: [[], {Result:"4",...}, []]
+            // Only skip if ALL elements are empty arrays — never filter on a single empty element.
             const pr = player.PlayerResults || [];
-            const validHoles = pr.filter(h => h && typeof h === "object" && !Array.isArray(h));
+            const validHoles = pr.filter(h => h !== null && !Array.isArray(h) && typeof h === "object");
             if (validHoles.length === 0) continue;
 
             // Compute per-hole stats from PlayerResults (fields are strings "0"/"1")
