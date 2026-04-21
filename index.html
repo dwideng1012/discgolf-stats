@@ -261,7 +261,7 @@
   <script>
     const PLAYER_ID = "2821";
     document.getElementById("version").textContent =
-      "v1.5 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.6 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     function setProgress(pct, label) {
@@ -272,6 +272,19 @@
     function showError(msg) {
       document.getElementById("errorMsg").textContent = msg;
     }
+
+    async function testFetch() {
+      const url = 'https://discgolfmetrix.com/api.php?content=result&id=3571727&code=oI4goD8pdKO1N2vEJ3RWpGjddYiikDhI';
+      const response = await fetch(url);
+      const text = await response.text();
+      console.log("RAW RESPONSE:", text.slice(0, 1000));
+      const data = JSON.parse(text);
+      console.log("data keys:", Object.keys(data));
+      console.log("data.Results type:", typeof data.Results, Array.isArray(data.Results));
+      console.log("data.Results length:", data.Results?.length);
+      console.log("first result UserID:", data.Results?.[0]?.UserID);
+    }
+    testFetch();
 
     async function fetchJSON(url) {
       const r = await fetch(url);
