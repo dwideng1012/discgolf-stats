@@ -181,29 +181,57 @@
     td.zero { color: var(--muted); }
     td.course { color: var(--accent); font-size: 0.8rem; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
     td.course:hover { text-decoration: underline; }
+    td.filter-btn { width: 28px; padding: 0 8px 0 0; text-align: right; }
+    td.filter-btn span {
+      display: inline-block;
+      opacity: 0;
+      color: var(--muted);
+      font-size: 1rem;
+      cursor: pointer;
+      transition: opacity 0.1s, color 0.1s;
+      line-height: 1;
+      user-select: none;
+    }
+    tr:hover td.filter-btn span { opacity: 1; }
+    td.filter-btn span:hover { color: var(--accent); }
 
     #filterBar {
       display: none;
       align-items: center;
-      gap: 10px;
+      gap: 14px;
       background: var(--surface);
-      border: 1px solid var(--accent);
-      border-radius: 8px;
-      padding: 10px 14px;
+      border: 2px solid var(--accent);
+      border-radius: 10px;
+      padding: 14px 18px;
       margin-bottom: 16px;
-      font-size: 0.85rem;
     }
-    #filterBar span { flex: 1; color: var(--accent); font-weight: 600; }
-    #filterBar button {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      padding: 4px 12px;
-      border-radius: 5px;
+    #filterBar .filter-text {
+      flex: 1;
+      font-size: 0.9rem;
+      color: var(--text);
+    }
+    #filterBar .filter-text strong { color: var(--accent); }
+    #filterBar .filter-count {
       font-size: 0.75rem;
-      cursor: pointer;
+      color: var(--muted);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2px 10px;
     }
-    #filterBar button:hover { border-color: var(--accent); color: var(--text); }
+    #filterBar button {
+      background: var(--red);
+      border: none;
+      color: #fff;
+      padding: 7px 16px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: opacity 0.15s;
+    }
+    #filterBar button:hover { opacity: 0.85; }
 
     #results { display: none; }
 
@@ -257,8 +285,9 @@
 
   <div id="results">
     <div id="filterBar">
-      <span id="filterLabel"></span>
-      <button onclick="clearFilter()">Kõik rajad</button>
+      <div class="filter-text">N&auml;itan ainult: <strong id="filterCourseName"></strong></div>
+      <span class="filter-count" id="filterCount"></span>
+      <button onclick="clearFilter()">&times; Eemalda filter</button>
     </div>
 
     <div id="statsGrid"></div>
@@ -278,6 +307,7 @@
             <th>Skoor</th>
             <th>Diff</th>
             <th>Koht</th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="roundsBody"></tbody>
@@ -289,7 +319,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.13 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.14 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const savedCode = localStorage.getItem("metrix_api_code");
@@ -423,10 +453,18 @@
     let allRounds = [];
     let activeFilter = null; // courseID of active filter, or null
 
-    // Event delegation for course filter clicks
+    // Event delegation: course name → open Metrix; filter icon → set filter
     document.getElementById("roundsBody").addEventListener("click", function(e) {
-      const td = e.target.closest("td.course[data-course-id]");
-      if (td) setFilter(td.dataset.courseId, td.textContent.trim());
+      const filterIcon = e.target.closest("td.filter-btn span");
+      if (filterIcon) {
+        const row = filterIcon.closest("tr");
+        setFilter(row.dataset.courseId, row.dataset.courseName);
+        return;
+      }
+      const courseCell = e.target.closest("td.course[data-course-id]");
+      if (courseCell) {
+        window.open("https://discgolfmetrix.com/course/" + courseCell.dataset.courseId, "_blank");
+      }
     });
 
     function diffClass(v) {
@@ -472,8 +510,8 @@
       // Filter bar
       const bar = document.getElementById("filterBar");
       if (activeFilter) {
-        document.getElementById("filterLabel").textContent =
-          activeFilter.name + " \u00b7 " + filtered.length + " vooru";
+        document.getElementById("filterCourseName").textContent = activeFilter.name;
+        document.getElementById("filterCount").textContent = filtered.length + " vooru";
         bar.style.display = "flex";
       } else {
         bar.style.display = "none";
@@ -509,18 +547,22 @@
         </div>
       `).join("");
 
-      // Table: newest first; course cell uses data-course-id for safe event delegation
+      // Table: newest first
+      // Course cell → opens Metrix page; filter icon → sets course filter
       document.getElementById("roundsBody").innerHTML = chrono.slice().reverse().map(r => {
         const dc = diffClass(r.diff);
-        const courseCell = activeFilter
-          ? `<td class="course" style="cursor:default;color:var(--muted)">${r.course}</td>`
-          : `<td class="course" data-course-id="${r.courseID}">${r.course}</td>`;
-        return `<tr>
+        const esc = s => String(s).replace(/"/g, "&quot;");
+        const courseCell = `<td class="course" data-course-id="${esc(r.courseID)}">${r.course}</td>`;
+        const filterCell = activeFilter
+          ? `<td class="filter-btn"></td>`
+          : `<td class="filter-btn"><span title="Filtreeri selle raja järgi">⊕</span></td>`;
+        return `<tr data-course-id="${esc(r.courseID)}" data-course-name="${esc(r.course)}">
           <td>${r.date}</td>
           ${courseCell}
           <td class="mono">${r.sum}</td>
           <td class="mono ${dc}">${fmtDiff(r.diff)}</td>
           <td class="mono">${r.place != null ? r.place : "–"}</td>
+          ${filterCell}
         </tr>`;
       }).join("");
 
