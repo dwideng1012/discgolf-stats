@@ -236,7 +236,7 @@
 
     <div class="section">
       <h2>Skoor trend &mdash; Diff vs par</h2>
-      <canvas id="trendChart"></canvas>
+      <canvas id="trendChart" width="600" height="200"></canvas>
     </div>
 
     <div class="table-section">
@@ -259,9 +259,8 @@
   <div id="version"></div>
 
   <script>
-    const PLAYER_ID = "2821";
     document.getElementById("version").textContent =
-      "v1.7 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.8 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     function setProgress(pct, label) {
@@ -316,12 +315,11 @@
           for (const data of results) {
             if (!data || !data.Competition) continue;
 
-            // Results and Tracks live inside Competition
+            // Results live inside Competition; Results[0] is always the API key's owner
             const compResults = data.Competition.Results;
             if (!compResults || !compResults.length) continue;
 
-            // Condition 1: player found
-            const player = compResults.find(r => String(r.UserID) === PLAYER_ID);
+            const player = compResults[0];
             if (!player) continue;
 
             // Condition 3: DNF === null
@@ -420,8 +418,6 @@
         </div>
       `).join("");
 
-      drawChart(chrono);
-
       // Table: newest first
       const tbody = document.getElementById("roundsBody");
       tbody.innerHTML = chrono.slice().reverse().map(r => {
@@ -435,7 +431,10 @@
         </tr>`;
       }).join("");
 
+      // Show results before drawing chart so clientWidth is non-zero
       document.getElementById("results").style.display = "block";
+      console.log("drawing chart with", chrono.length, "rounds");
+      drawChart(chrono);
     }
 
     function drawChart(rounds) {
