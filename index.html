@@ -194,7 +194,7 @@
 <body>
   <header>
     <h1>Discgolf Stats</h1>
-    <p class="subtitle">Kristjan Liiv &middot; ID 2821 &middot; Discgolf Metrix</p>
+    <p class="subtitle">Discgolf Metrix</p>
   </header>
 
   <div class="controls">
@@ -276,11 +276,13 @@
 
       try {
         setProgress(5, "Laen võistluste nimekirja...");
+        console.log("fetching competitions...");
         const list = await fetchJSON(API + "?content=my_competitions&code=" + encodeURIComponent(code));
 
         if (list.Errors && list.Errors.length) throw new Error(list.Errors.join(", "));
 
         const allIds = list.my_competitions || [];
+        console.log("competitions loaded:", allIds.length);
         if (!allIds.length) throw new Error("Võistluste nimekiri on tühi.");
 
         // Take last N (newest first after reverse)
@@ -293,10 +295,11 @@
           const batch = toFetch.slice(i, i + BATCH);
 
           const results = await Promise.all(
-            batch.map(id =>
-              fetchJSON(API + "?content=result&id=" + id + "&code=" + encodeURIComponent(code))
-                .catch(() => null)
-            )
+            batch.map(id => {
+              console.log("fetching result:", id);
+              return fetchJSON(API + "?content=result&id=" + id + "&code=" + encodeURIComponent(code))
+                .catch(e => { console.error("failed result", id, e); return null; });
+            })
           );
 
           for (const data of results) {
@@ -331,6 +334,7 @@
           displayResults(rounds);
         }
       } catch (e) {
+        console.error("loadData error:", e);
         showError("Viga: " + e.message);
       } finally {
         setTimeout(() => {
