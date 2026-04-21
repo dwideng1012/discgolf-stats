@@ -261,7 +261,7 @@
   <script>
     const PLAYER_ID = "2821";
     document.getElementById("version").textContent =
-      "v1.4 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.5 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     function setProgress(pct, label) {
@@ -321,10 +321,16 @@
             if (!data || !data.Competition) continue;
             console.log("id:", id, "errors:", data.Errors, "competition:", data.Competition?.Date);
 
+            // Results is a top-level key, not inside Competition
+            if (!data.Results || !data.Results.length) {
+              console.log("id:", id, "no Results array, skipping");
+              continue;
+            }
+
             // Condition 1: player found
-            const player = (data.Results || []).find(r => r.UserID === PLAYER_ID);
+            const player = data.Results.find(r => r.UserID === PLAYER_ID);
             if (!player) {
-              console.log("id:", id, "player 2821 not found in", data.Results?.length, "results");
+              console.log("id:", id, "player 2821 not found in", data.Results.length, "results");
               continue;
             }
 
