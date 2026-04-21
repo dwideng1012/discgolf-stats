@@ -183,6 +183,16 @@
 
     #results { display: none; }
 
+    #version {
+      position: fixed;
+      bottom: 10px;
+      right: 14px;
+      font-size: 0.7rem;
+      color: var(--border);
+      font-family: 'Courier New', monospace;
+      pointer-events: none;
+    }
+
     @media (max-width: 600px) {
       input[type="text"] { width: 100%; }
       .controls { flex-direction: column; align-items: stretch; }
@@ -246,8 +256,12 @@
     </div>
   </div>
 
+  <div id="version"></div>
+
   <script>
     const PLAYER_ID = "2821";
+    document.getElementById("version").textContent =
+      "v1.4 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     function setProgress(pct, label) {
@@ -303,24 +317,39 @@
           );
 
           for (const data of results) {
+            const id = data && data.Competition ? data.Competition.ID : "?";
             if (!data || !data.Competition) continue;
+            console.log("id:", id, "errors:", data.Errors, "competition:", data.Competition?.Date);
 
             // Condition 1: player found
             const player = (data.Results || []).find(r => r.UserID === PLAYER_ID);
-            if (!player) continue;
+            if (!player) {
+              console.log("id:", id, "player 2821 not found in", data.Results?.length, "results");
+              continue;
+            }
 
             // Condition 3: DNF === null (not "1" or any other truthy value)
-            if (player.DNF !== null && player.DNF !== undefined) continue;
+            if (player.DNF !== null && player.DNF !== undefined) {
+              console.log("id:", id, "DNF, skipping");
+              continue;
+            }
 
             // Condition 2: Sum > 0
-            if (!(Number(player.Sum) > 0)) continue;
+            if (!(Number(player.Sum) > 0)) {
+              console.log("id:", id, "Sum=0, skipping");
+              continue;
+            }
 
             // Condition 4: PlayerResults has at least one hole object.
             // Some rounds have mixed format: [[], {Result:"4",...}, []]
             // Only skip if ALL elements are empty arrays — never filter on a single empty element.
             const pr = player.PlayerResults || [];
             const validHoles = pr.filter(h => h !== null && !Array.isArray(h) && typeof h === "object");
-            if (validHoles.length === 0) continue;
+            if (validHoles.length === 0) {
+              console.log("id:", id, "no valid hole data, skipping");
+              continue;
+            }
+            console.log("id:", id, "VALID round, diff:", player.Diff);
 
             // Compute per-hole stats from PlayerResults (fields are strings "0"/"1")
             const totalHoles = validHoles.length;
