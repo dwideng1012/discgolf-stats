@@ -289,7 +289,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.11 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.12 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const savedCode = localStorage.getItem("metrix_api_code");
@@ -509,7 +509,6 @@
         </tr>`;
       }).join("");
 
-      console.log("drawing chart with", chrono.length, "rounds");
       drawChart(chrono);
     }
 
