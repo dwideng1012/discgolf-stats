@@ -289,7 +289,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.12 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.13 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const savedCode = localStorage.getItem("metrix_api_code");
@@ -337,6 +337,7 @@
         const BATCH = 5;
         const rounds = [];
         let myUserID = null;
+        let myPlayerName = null;
 
         for (let i = 0; i < toFetch.length; i += BATCH) {
           const batch = toFetch.slice(i, i + BATCH);
@@ -354,8 +355,11 @@
             const compResults = data.Competition.Results;
             if (!compResults || !compResults.length) continue;
 
-            // On first valid round, learn the UserID from Results[0]
-            if (myUserID === null) myUserID = String(compResults[0].UserID);
+            // On first valid round, learn UserID and name from Results[0]
+            if (myUserID === null) {
+              myUserID = String(compResults[0].UserID);
+              myPlayerName = compResults[0].Name || null;
+            }
             const player = compResults.find(r => String(r.UserID) === myUserID);
             if (!player) continue;
 
@@ -379,13 +383,14 @@
             const icp = validHoles.filter(h => h.ICP === "1").length;
 
             rounds.push({
-              date:   data.Competition.Date || "",
-              name:   data.Competition.Name || "",
-              course: data.Competition.CourseName || data.Competition.Name || "",
-              sum:    Number(player.Sum),
-              diff:   Number(player.Diff),
-              place:  player.Place,
-              holes:  totalHoles,
+              date:     data.Competition.Date || "",
+              name:     data.Competition.Name || "",
+              course:   data.Competition.CourseName || data.Competition.Name || "",
+              courseID: data.Competition.CourseID || null,
+              sum:      Number(player.Sum),
+              diff:     Number(player.Diff),
+              place:    player.Place,
+              holes:    totalHoles,
               bue,
               grh,
               icp,
@@ -403,7 +408,7 @@
           showError("Kehtivaid voore ei leitud.");
         } else {
           localStorage.setItem("metrix_api_code", code);
-          displayResults(rounds);
+          displayResults(rounds, myPlayerName);
         }
       } catch (e) {
         showError("Viga: " + e.message);
@@ -416,7 +421,13 @@
     }
 
     let allRounds = [];
-    let activeFilter = null;
+    let activeFilter = null; // courseID of active filter, or null
+
+    // Event delegation for course filter clicks
+    document.getElementById("roundsBody").addEventListener("click", function(e) {
+      const td = e.target.closest("td.course[data-course-id]");
+      if (td) setFilter(td.dataset.courseId, td.textContent.trim());
+    });
 
     function diffClass(v) {
       if (v < 0) return "good";
@@ -432,8 +443,8 @@
       return (n > 0 ? "+" : "") + (decimals !== undefined ? v.toFixed(decimals) : n);
     }
 
-    function setFilter(course) {
-      activeFilter = course;
+    function setFilter(courseID, courseName) {
+      activeFilter = { id: String(courseID), name: courseName };
       renderView();
     }
 
@@ -442,23 +453,27 @@
       renderView();
     }
 
-    function displayResults(rounds) {
+    function displayResults(rounds, playerName) {
       allRounds = rounds;
       activeFilter = null;
+      if (playerName) {
+        document.querySelector("header p.subtitle").textContent = playerName;
+        document.title = "Discgolf Stats \u2013 " + playerName;
+      }
       document.getElementById("results").style.display = "block";
       renderView();
     }
 
     function renderView() {
       const filtered = activeFilter
-        ? allRounds.filter(r => r.course === activeFilter)
+        ? allRounds.filter(r => String(r.courseID) === activeFilter.id)
         : allRounds;
 
       // Filter bar
       const bar = document.getElementById("filterBar");
       if (activeFilter) {
         document.getElementById("filterLabel").textContent =
-          activeFilter + " \u00b7 " + filtered.length + " vooru";
+          activeFilter.name + " \u00b7 " + filtered.length + " vooru";
         bar.style.display = "flex";
       } else {
         bar.style.display = "none";
@@ -494,12 +509,12 @@
         </div>
       `).join("");
 
-      // Table: newest first; course cell is clickable
+      // Table: newest first; course cell uses data-course-id for safe event delegation
       document.getElementById("roundsBody").innerHTML = chrono.slice().reverse().map(r => {
         const dc = diffClass(r.diff);
         const courseCell = activeFilter
           ? `<td class="course" style="cursor:default;color:var(--muted)">${r.course}</td>`
-          : `<td class="course" onclick="setFilter(${JSON.stringify(r.course)})">${r.course}</td>`;
+          : `<td class="course" data-course-id="${r.courseID}">${r.course}</td>`;
         return `<tr>
           <td>${r.date}</td>
           ${courseCell}
