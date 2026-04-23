@@ -184,8 +184,10 @@
     td.good { color: var(--green); }
     td.bad  { color: var(--red); }
     td.zero { color: var(--muted); }
-    td.course { color: var(--accent); font-size: 0.8rem; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+    td.course { color: var(--accent); font-size: 0.8rem; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
     td.course:hover { text-decoration: underline; }
+    td.competition { color: var(--text); font-size: 0.8rem; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+    td.competition:hover { color: var(--accent); text-decoration: underline; }
     td.filter-btn { width: 28px; padding: 0 8px 0 0; text-align: right; }
     td.filter-btn span {
       display: inline-block;
@@ -271,13 +273,16 @@
     </div>
     <div class="field">
       <label>Ringe</label>
-      <select id="countSelect">
-        <option value="10">10</option>
-        <option value="25">25</option>
-        <option value="50" selected>50</option>
-        <option value="100">100</option>
-        <option value="99999">K&otilde;ik</option>
-      </select>
+      <div style="display:flex;gap:6px;align-items:center">
+        <select id="countSelect" onchange="document.getElementById('countCustom').value=''">
+          <option value="10">10</option>
+          <option value="25">25</option>
+          <option value="50" selected>50</option>
+          <option value="100">100</option>
+          <option value="99999">K&otilde;ik</option>
+        </select>
+        <input type="number" id="countCustom" min="1" placeholder="või sisesta" style="width:100px">
+      </div>
     </div>
     <button id="loadBtn" onclick="loadData()">Laadi</button>
   </div>
@@ -319,6 +324,7 @@
         <thead>
           <tr>
             <th>Kuup&auml;ev</th>
+            <th>V&otilde;istlus</th>
             <th>Rada</th>
             <th>Skoor</th>
             <th>Diff</th>
@@ -335,7 +341,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.20 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.21 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const savedCode = localStorage.getItem("metrix_api_code");
@@ -361,7 +367,8 @@
 
     async function loadData() {
       const code = document.getElementById("apiCode").value.trim();
-      const count = parseInt(document.getElementById("countSelect").value, 10);
+      const customVal = parseInt(document.getElementById("countCustom").value, 10);
+      const count = customVal > 0 ? customVal : parseInt(document.getElementById("countSelect").value, 10);
 
       showError("");
       document.getElementById("results").style.display = "none";
@@ -449,30 +456,63 @@
             const parsePct  = s => (s && s !== "") ? parseFloat(s) : null;
             const parseNum  = s => (s !== null && s !== undefined && s !== "") ? Number(s) : null;
 
-            // Putiprotsent = holes / totalPutts * 100 (higher = better)
+            // Overall putiprotsent = holes_with_putts / totalPutts * 100
             const puttsHoles = validHoles.filter(h => h.ICP !== "" && h.IBP !== "");
             const totalPutts = puttsHoles.reduce((s, h) => s + Number(h.ICP) + Number(h.IBP), 0);
             const puttPct = puttsHoles.length > 0 && totalPutts > 0
-              ? puttsHoles.length / totalPutts * 100
-              : null;
+              ? puttsHoles.length / totalPutts * 100 : null;
 
-            // Hole-in-one: Result === "1"
+            // ICP putiprotsent (3-10m): holes where IBP=0 and ICP>0
+            const icpHoles = validHoles.filter(h => h.ICP !== "" && Number(h.IBP) === 0 && Number(h.ICP) > 0);
+            const icpTotal = icpHoles.reduce((s, h) => s + Number(h.ICP), 0);
+            const icpPct = icpHoles.length > 0 && icpTotal > 0
+              ? icpHoles.length / icpTotal * 100 : null;
+
+            // PAR save putiprotsent
+            const parHoles = validHoles.filter(h => {
+              if (h.Result === "1") return false;
+              if (Number(h.OCP) >= 1) return false;
+              if (Number(h.Diff) !== 0) return false;
+              if (Number(h.GRH) === 1 && Number(h.ICP) === 1) return false; // birdie putt
+              return h.ICP !== "";
+            });
+            const parSaved = parHoles.filter(h =>
+              Number(h.GRH) === 1 ? Number(h.ICP) === 2 : Number(h.ICP) === 1
+            ).length;
+            const parSavePct = parHoles.length > 0 ? parSaved / parHoles.length * 100 : null;
+
+            // Birdie putiprotsent: GRH=1 and Diff=-1
+            const birdieHoles = validHoles.filter(h => {
+              if (h.Result === "1") return false;
+              if (Number(h.GRH) !== 1 || Number(h.Diff) !== -1) return false;
+              if (Number(h.IBP) === 1) return false;
+              if (Number(h.ICP) === 0 && Number(h.IBP) === 0) return false;
+              return h.ICP !== "";
+            });
+            const birdieMade = birdieHoles.filter(h => Number(h.ICP) === 1).length;
+            const birdiePct = birdieHoles.length > 0 ? birdieMade / birdieHoles.length * 100 : null;
+
+            // Hole-in-one count
             const hio = validHoles.filter(h => h.Result === "1").length;
 
             rounds.push({
-              date:     data.Competition.Date || "",
-              name:     data.Competition.Name || "",
-              course:   data.Competition.CourseName || data.Competition.Name || "",
-              courseID: data.Competition.CourseID || null,
-              sum:      Number(player.Sum),
-              diff:     Number(player.Diff),
-              place:    player.Place,
-              holes:    validHoles.length,
-              grhPct:   parsePct(player.GRHTotal),
-              buePct:   parsePct(player.BUETotal),
-              ocpN:     parseNum(player.OCPTotal),
-              penN:     parseNum(player.PenaltiesTotal),
+              date:          data.Competition.Date || "",
+              name:          data.Competition.Name || "",
+              competitionID: data.Competition.ID || null,
+              course:        data.Competition.CourseName || data.Competition.Name || "",
+              courseID:      data.Competition.CourseID || null,
+              sum:           Number(player.Sum),
+              diff:          Number(player.Diff),
+              place:         player.Place,
+              holes:         validHoles.length,
+              grhPct:        parsePct(player.GRHTotal),
+              buePct:        parsePct(player.BUETotal),
+              ocpN:          parseNum(player.OCPTotal),
+              penN:          parseNum(player.PenaltiesTotal),
               puttPct,
+              icpPct,
+              parSavePct,
+              birdiePct,
               hio,
             });
           }
@@ -501,19 +541,24 @@
     }
 
     let allRounds = [];
-    let activeFilter = null; // courseID of active filter, or null
+    let activeFilter = null; // {type:'course'|'competition', id, name} or null
 
-    // Event delegation: course name → open Metrix; filter icon → set filter
+    // Event delegation: course name → open Metrix; filter icon → set course filter; competition name → set competition filter
     document.getElementById("roundsBody").addEventListener("click", function(e) {
       const filterIcon = e.target.closest("td.filter-btn span");
       if (filterIcon) {
         const row = filterIcon.closest("tr");
-        setFilter(row.dataset.courseId, row.dataset.courseName);
+        setFilter("course", row.dataset.courseId, row.dataset.courseName);
         return;
       }
       const courseCell = e.target.closest("td.course[data-course-id]");
       if (courseCell) {
         window.open("https://discgolfmetrix.com/course/" + courseCell.dataset.courseId, "_blank");
+        return;
+      }
+      const compCell = e.target.closest("td.competition[data-competition-id]");
+      if (compCell) {
+        setFilter("competition", compCell.dataset.competitionId, compCell.dataset.competitionName);
       }
     });
 
@@ -531,8 +576,8 @@
       return (n > 0 ? "+" : "") + (decimals !== undefined ? v.toFixed(decimals) : n);
     }
 
-    function setFilter(courseID, courseName) {
-      activeFilter = { id: String(courseID), name: courseName };
+    function setFilter(type, id, name) {
+      activeFilter = { type, id: String(id), name };
       renderView();
     }
 
@@ -554,7 +599,11 @@
 
     function renderView() {
       const filtered = activeFilter
-        ? allRounds.filter(r => String(r.courseID) === activeFilter.id)
+        ? allRounds.filter(r =>
+            activeFilter.type === "competition"
+              ? String(r.competitionID) === activeFilter.id
+              : String(r.courseID) === activeFilter.id
+          )
         : allRounds;
 
       // Filter bar
@@ -606,13 +655,20 @@
         { label: "Viimane 10 (avg)", value: fmtDiff(avg10, 1),  cls: diffClass(avg10) },
       ];
 
+      const icpAvg      = statAvg("icpPct");
+      const parSaveAvg  = statAvg("parSavePct");
+      const birdieAvg   = statAvg("birdiePct");
+
       const statCards = [
-        { label: "GRH%",        value: fmtStat(grh,     v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(grh) },
-        { label: "BUE%",        value: fmtStat(bue,     v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(bue) },
-        { label: "OCP",         value: fmtStat(ocp,     v => v.toFixed(1)),       cls: "neutral", sub: sub(ocp) },
-        { label: "Trahvid",     value: fmtStat(pen,     v => v.toFixed(1)),       cls: pen && pen.val > 0 ? "bad" : "neutral", sub: sub(pen) },
-        { label: "Putiprotsent",value: fmtStat(puttPct, v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(puttPct) },
-        { label: "Hole-in-one", value: totalHIO,                                  cls: totalHIO > 0 ? "good" : "neutral", sub: "kokku" },
+        { label: "GRH%",          value: fmtStat(grh,        v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(grh) },
+        { label: "BUE%",          value: fmtStat(bue,        v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(bue) },
+        { label: "OCP",           value: fmtStat(ocp,        v => v.toFixed(1)),       cls: "neutral", sub: sub(ocp) },
+        { label: "Trahvid",       value: fmtStat(pen,        v => v.toFixed(1)),       cls: pen && pen.val > 0 ? "bad" : "neutral", sub: sub(pen) },
+        { label: "Putiprotsent",  value: fmtStat(puttPct,    v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(puttPct) },
+        { label: "ICP putiprot.", value: fmtStat(icpAvg,     v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(icpAvg) },
+        { label: "PAR save%",     value: fmtStat(parSaveAvg, v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(parSaveAvg) },
+        { label: "Birdie putiprot.", value: fmtStat(birdieAvg, v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(birdieAvg) },
+        { label: "Hole-in-one",   value: totalHIO,                                     cls: totalHIO > 0 ? "good" : "neutral", sub: "kokku" },
       ];
 
       const allCards = [...baseCards, ...statCards];
@@ -630,11 +686,13 @@
         const dc = diffClass(r.diff);
         const esc = s => String(s).replace(/"/g, "&quot;");
         const courseCell = `<td class="course" data-course-id="${esc(r.courseID)}">${r.course}</td>`;
+        const compCell = `<td class="competition" data-competition-id="${esc(r.competitionID)}" data-competition-name="${esc(r.name)}" title="${esc(r.name)}">${r.name}</td>`;
         const filterCell = activeFilter
           ? `<td class="filter-btn"></td>`
           : `<td class="filter-btn"><span title="Filtreeri selle raja järgi">⊕</span></td>`;
         return `<tr data-course-id="${esc(r.courseID)}" data-course-name="${esc(r.course)}">
           <td>${r.date}</td>
+          ${compCell}
           ${courseCell}
           <td class="mono">${r.sum}</td>
           <td class="mono ${dc}">${fmtDiff(r.diff)}</td>
