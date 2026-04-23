@@ -200,19 +200,19 @@
     td.course:hover { text-decoration: underline; }
     td.competition { color: var(--text); font-size: 0.8rem; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
     td.competition:hover { color: var(--accent); text-decoration: underline; }
-    td.filter-btn { width: 28px; padding: 0 8px 0 0; text-align: right; }
-    td.filter-btn span {
+    td.course .filter-icon {
       display: inline-block;
       opacity: 0;
       color: var(--muted);
-      font-size: 1rem;
+      font-size: 0.85rem;
       cursor: pointer;
       transition: opacity 0.1s, color 0.1s;
-      line-height: 1;
+      margin-left: 5px;
       user-select: none;
+      vertical-align: middle;
     }
-    tr:hover td.filter-btn span { opacity: 1; }
-    td.filter-btn span:hover { color: var(--accent); }
+    tr:hover td.course .filter-icon { opacity: 1; }
+    td.course .filter-icon:hover { color: var(--accent); }
 
     #filterBar {
       display: none;
@@ -342,7 +342,6 @@
             <th>Skoor</th>
             <th>Diff</th>
             <th>Koht</th>
-            <th></th>
           </tr>
         </thead>
         <tbody id="roundsBody"></tbody>
@@ -354,7 +353,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.27 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.28 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const CACHE_KEY = "metrix_rounds_cache";
@@ -563,7 +562,7 @@
               grhPct:        parsePct(player.GRHTotal),
               buePct:        parsePct(player.BUETotal),
               ocpN:          parseNum(player.OCPTotal),
-              penN:          parseNum(player.PenaltiesTotal),
+              penN:          validHoles.reduce((s, h) => s + Number(h.PEN || 0), 0),
               puttPct,
               icpPct,
               parSavePct,
@@ -607,7 +606,7 @@
 
     // Event delegation: course name → open Metrix; filter icon → set course filter; competition name → set competition filter
     document.getElementById("roundsBody").addEventListener("click", function(e) {
-      const filterIcon = e.target.closest("td.filter-btn span");
+      const filterIcon = e.target.closest(".filter-icon");
       if (filterIcon) {
         const row = filterIcon.closest("tr");
         setFilter("course", row.dataset.courseId, row.dataset.courseName);
@@ -721,11 +720,13 @@
       const parSaveAvg  = statAvg("parSavePct");
       const birdieAvg   = statAvg("birdiePct");
 
+      const avgPen = chrono.reduce((s, r) => s + (r.penN || 0), 0) / (chrono.length || 1);
+
       const statCards = [
         { label: "GRH%",          value: fmtStat(grh,        v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(grh) },
         { label: "BUE%",          value: fmtStat(bue,        v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(bue) },
         { label: "OCP",           value: fmtStat(ocp,        v => v.toFixed(1)),       cls: "neutral", sub: sub(ocp) },
-        { label: "Trahvid",       value: fmtStat(pen,        v => v.toFixed(1)),       cls: pen && pen.val > 0 ? "bad" : "neutral", sub: sub(pen) },
+        { label: "Trahvid",       value: avgPen.toFixed(2),                            cls: avgPen > 0 ? "bad" : "neutral", sub: chrono.length + "/" + chrono.length + " ringist" },
         { label: "Putiprotsent",  value: fmtStat(puttPct,    v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(puttPct) },
         { label: "ICP putiprot.", value: fmtStat(icpAvg,     v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(icpAvg) },
         { label: "PAR putiprotsent", value: fmtStat(parSaveAvg, v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(parSaveAvg) },
@@ -747,11 +748,9 @@
       document.getElementById("roundsBody").innerHTML = chrono.slice().reverse().map(r => {
         const dc = diffClass(r.diff);
         const esc = s => String(s).replace(/"/g, "&quot;");
-        const courseCell = `<td class="course" data-course-id="${esc(r.courseID)}">${r.course}</td>`;
+        const filterIcon = activeFilter ? "" : `<span class="filter-icon" title="Filtreeri selle raja järgi">⊕</span>`;
+        const courseCell = `<td class="course" data-course-id="${esc(r.courseID)}">${r.course}${filterIcon}</td>`;
         const compCell = `<td class="competition" data-competition-id="${esc(r.competitionID)}" data-competition-name="${esc(r.name)}" title="${esc(r.name)}">${r.name}</td>`;
-        const filterCell = activeFilter
-          ? `<td class="filter-btn"></td>`
-          : `<td class="filter-btn"><span title="Filtreeri selle raja järgi">⊕</span></td>`;
         return `<tr data-course-id="${esc(r.courseID)}" data-course-name="${esc(r.course)}">
           <td>${r.date}</td>
           ${compCell}
@@ -759,7 +758,6 @@
           <td class="mono">${r.sum}</td>
           <td class="mono ${dc}">${fmtDiff(r.diff)}</td>
           <td class="mono">${r.place != null ? r.place : "–"}</td>
-          ${filterCell}
         </tr>`;
       }).join("");
 
