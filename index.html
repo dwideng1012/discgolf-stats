@@ -353,10 +353,10 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.28 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.29 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
-    const CACHE_KEY = "metrix_rounds_cache";
+    const CACHE_KEY = "metrix_rounds_cache_v2";
     const CACHE_TTL = 3600000; // 60 minutes
 
     let allRoundsCache = []; // all valid rounds from last fetch
@@ -549,6 +549,12 @@
             // Hole-in-one count
             const hio = validHoles.filter(h => h.Result === "1").length;
 
+            // Raw counts for cumulative stats
+            const grhHits  = validHoles.filter(h => Number(h.GRH) === 1).length;
+            const bueHits  = validHoles.filter(h => Number(h.BUE) === 1).length;
+            const ocpTotal = validHoles.reduce((s, h) => s + Number(h.OCP || 0), 0);
+            const penTotal = validHoles.reduce((s, h) => s + Number(h.PEN || 0), 0);
+
             rounds.push({
               date:          data.Competition.Date || "",
               name:          data.Competition.Name || "",
@@ -558,16 +564,23 @@
               sum:           Number(player.Sum),
               diff:          Number(player.Diff),
               place:         player.Place,
-              holes:         validHoles.length,
-              grhPct:        parsePct(player.GRHTotal),
-              buePct:        parsePct(player.BUETotal),
-              ocpN:          parseNum(player.OCPTotal),
-              penN:          validHoles.reduce((s, h) => s + Number(h.PEN || 0), 0),
-              puttPct,
-              icpPct,
-              parSavePct,
-              birdiePct,
+              holeCount:     validHoles.length,
               hio,
+              grhHits,
+              bueHits,
+              ocpTotal,
+              penTotal,
+              puttHoles:     puttsHoles.length,
+              totalPutts,
+              icpAttempts:   icpTotal,
+              icpMade,
+              parOpportunities: parHoles.length,
+              parSaved,
+              birdieOpportunities: birdieHoles.length,
+              birdieMade,
+              // Per-round values for trend charts only
+              grhPct:  validHoles.length > 0 ? grhHits / validHoles.length * 100 : null,
+              puttPct: puttsHoles.length > 0 && totalPutts > 0 ? puttsHoles.length / totalPutts * 100 : null,
             });
           }
 
@@ -687,21 +700,25 @@
       const last10diffs = activeFilter ? diffs : diffs.slice(-10);
       const avg10 = last10diffs.reduce((s, d) => s + d, 0) / last10diffs.length;
 
-      // Compute optional stat averages (skip rounds with null / missing data)
-      const statAvg = (key) => {
-        const vals = chrono.map(r => r[key]).filter(v => v !== null && !isNaN(v));
-        return vals.length ? { val: vals.reduce((s, v) => s + v, 0) / vals.length, n: vals.length } : null;
-      };
-      const grh     = statAvg("grhPct");
-      const bue     = statAvg("buePct");
-      const ocp     = statAvg("ocpN");
-      const pen     = statAvg("penN");
-      const puttPct = statAvg("puttPct");
-      const totalHIO = chrono.reduce((s, r) => s + (r.hio || 0), 0);
-      const total   = chrono.length;
+      const n = chrono.length;
+      const sumR   = key => chrono.reduce((s, r) => s + (r[key] || 0), 0);
+      const pct    = (num, den) => den > 0 ? (num / den * 100).toFixed(1) + "%" : "—";
+      const avgFmt = (num, den) => den > 0 ? (num / den).toFixed(2) : "—";
 
-      const fmtStat = (res, fmt) => res ? fmt(res.val) : "—";
-      const sub     = (res) => res ? res.n + "/" + total + " ringist" : "";
+      const totalHIO   = sumR("hio");
+      const totalHoles = sumR("holeCount");
+      const grhSum     = sumR("grhHits");
+      const bueSum     = sumR("bueHits");
+      const ocpSum     = sumR("ocpTotal");
+      const penSum     = sumR("penTotal");
+      const puttH      = sumR("puttHoles");
+      const puttT      = sumR("totalPutts");
+      const icpAtt     = sumR("icpAttempts");
+      const icpMadeSum = sumR("icpMade");
+      const parOpp     = sumR("parOpportunities");
+      const parSvd     = sumR("parSaved");
+      const birdOpp    = sumR("birdieOpportunities");
+      const birdMade   = sumR("birdieMade");
 
       const baseCards = activeFilter ? [
         { label: "Mängitud kordi",  value: filtered.length,    cls: "neutral" },
@@ -716,22 +733,18 @@
         { label: "Viimane 10 (avg)", value: fmtDiff(avg10, 1),  cls: diffClass(avg10) },
       ];
 
-      const icpAvg      = statAvg("icpPct");
-      const parSaveAvg  = statAvg("parSavePct");
-      const birdieAvg   = statAvg("birdiePct");
-
-      const avgPen = chrono.reduce((s, r) => s + (r.penN || 0), 0) / (chrono.length || 1);
+      const penAvg = n > 0 ? penSum / n : 0;
 
       const statCards = [
-        { label: "GRH%",          value: fmtStat(grh,        v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(grh) },
-        { label: "BUE%",          value: fmtStat(bue,        v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(bue) },
-        { label: "OCP",           value: fmtStat(ocp,        v => v.toFixed(1)),       cls: "neutral", sub: sub(ocp) },
-        { label: "Trahvid",       value: avgPen.toFixed(2),                            cls: avgPen > 0 ? "bad" : "neutral", sub: chrono.length + "/" + chrono.length + " ringist" },
-        { label: "Putiprotsent",  value: fmtStat(puttPct,    v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(puttPct) },
-        { label: "ICP putiprot.", value: fmtStat(icpAvg,     v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(icpAvg) },
-        { label: "PAR putiprotsent", value: fmtStat(parSaveAvg, v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(parSaveAvg) },
-        { label: "Birdie putiprot.", value: fmtStat(birdieAvg, v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(birdieAvg) },
-        { label: "Hole-in-one",   value: totalHIO,                                     cls: totalHIO > 0 ? "good" : "neutral", sub: "kokku" },
+        { label: "GRH%",             value: pct(grhSum, totalHoles),  cls: "neutral", sub: totalHoles + " auku" },
+        { label: "BUE%",             value: pct(bueSum, totalHoles),  cls: "neutral", sub: totalHoles + " auku" },
+        { label: "OCP",              value: avgFmt(ocpSum, n),         cls: "neutral", sub: n + " ringist" },
+        { label: "Trahvid",          value: avgFmt(penSum, n),         cls: penAvg > 0 ? "bad" : "neutral", sub: n + " ringist" },
+        { label: "Putiprotsent",     value: pct(puttH, puttT),        cls: "neutral", sub: puttH + " auku" },
+        { label: "ICP putiprot.",    value: pct(icpMadeSum, icpAtt),  cls: "neutral", sub: icpAtt + " katset" },
+        { label: "PAR putiprotsent", value: pct(parSvd, parOpp),      cls: "neutral", sub: parOpp + " katset" },
+        { label: "Birdie putiprot.", value: pct(birdMade, birdOpp),   cls: "neutral", sub: birdOpp + " katset" },
+        { label: "Hole-in-one",      value: totalHIO,                 cls: totalHIO > 0 ? "good" : "neutral", sub: "kokku" },
       ];
 
       const allCards = [...baseCards, ...statCards];
