@@ -341,7 +341,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.22 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.23 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const savedCode = localStorage.getItem("metrix_api_code");
@@ -424,23 +424,25 @@
               continue;
             }
 
-            // Condition 3: DNF === null
-            if (candidate.DNF !== null && candidate.DNF !== undefined) {
-              console.log("DNF, skip");
-              continue;
-            }
-
-            // Condition 2: Sum > 0
+            // Condition: Sum > 0
             if (!(Number(candidate.Sum) > 0)) {
               console.log("Sum=0, skip");
               continue;
             }
 
-            // Condition 4: PlayerResults has at least one hole object.
+            // Condition: PlayerResults has at least one hole object.
             // Mixed format possible: [[], {Result:"4",...}, []]
             // Only skip if ALL elements are empty arrays.
             const pr = candidate.PlayerResults || [];
-            const validHoles = pr.filter(h => h !== null && !Array.isArray(h) && typeof h === "object");
+            const tracks = data.Competition.Tracks || [];
+            // Build validHoles with par value from Tracks by original index
+            const validHoles = pr.reduce((acc, h, i) => {
+              if (h !== null && !Array.isArray(h) && typeof h === "object") {
+                const par = tracks[i] ? parseInt(tracks[i].Par, 10) : null;
+                acc.push({ ...h, _par: par });
+              }
+              return acc;
+            }, []);
             if (validHoles.length === 0) continue;
 
             // Round is valid — lock in myUserID from the first valid round only
@@ -468,11 +470,13 @@
             const icpPct = icpHoles.length > 0 && icpTotal > 0
               ? icpHoles.length / icpTotal * 100 : null;
 
-            // PAR putiprotsent
+            // PAR putiprotsent (uses par from Tracks by index via h._par)
             const parHoles = validHoles.filter(h => {
               if (h.Result === "1") return false;
               if (h.ICP === "") return false;
+              if (h._par === null) return false;
               const grh = Number(h.GRH), icp = Number(h.ICP), ibp = Number(h.IBP), ocp = Number(h.OCP), bue = Number(h.BUE);
+              const result = parseInt(h.Result, 10);
               if (grh === 1) {
                 if (ibp >= 1) return false;   // IBP tap-in → exclude
                 if (ocp >= 1) return false;   // OCP → exclude
@@ -480,7 +484,7 @@
                 if (icp === 1) return false;  // birdie putt → exclude
                 return icp >= 2;
               } else {
-                if (Number(h.Diff) !== 0) return false; // GRH=0: only par holes
+                if (result !== h._par) return false; // GRH=0: only par holes
                 if (ibp >= 1) return false;
                 if (ocp >= 1) return false;
                 return icp >= 1;
@@ -491,12 +495,14 @@
             ).length;
             const parSavePct = parHoles.length > 0 ? parSaved / parHoles.length * 100 : null;
 
-            // Birdie putiprotsent: GRH=1 and Diff=-1
+            // Birdie putiprotsent: GRH=1 and result = par-1 (uses Tracks par via h._par)
             const birdieHoles = validHoles.filter(h => {
               if (h.Result === "1") return false;
               if (h.ICP === "") return false;
-              if (Number(h.GRH) !== 1 || Number(h.Diff) !== -1) return false;
-              // IBP=1, ICP=0 → BUE/tap-in, exclude; all other GRH=1,Diff=-1 included
+              if (h._par === null) return false;
+              if (Number(h.GRH) !== 1) return false;
+              if (parseInt(h.Result, 10) !== h._par - 1) return false;
+              // IBP=1, ICP=0 → BUE/tap-in, exclude
               if (Number(h.IBP) === 1 && Number(h.ICP) === 0) return false;
               return true;
             });
