@@ -285,7 +285,9 @@
       </div>
     </div>
     <button id="loadBtn" onclick="loadData()">Laadi</button>
+    <button id="refreshBtn" onclick="loadData(true)" style="display:none;background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:9px 16px;border-radius:7px;font-size:0.85rem;cursor:pointer;">&#x21bb; Uuenda</button>
   </div>
+  <div id="cacheMsg" style="font-size:0.75rem;color:var(--muted);margin-bottom:12px;display:none;"></div>
 
   <div id="progressWrap">
     <div id="progressLabel">Laadimine...</div>
@@ -341,13 +343,30 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.25 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.26 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
+
+    const CACHE_KEY = "metrix_rounds_cache";
+    const CACHE_TTL = 3600000; // 60 minutes
 
     const savedCode = localStorage.getItem("metrix_api_code");
     if (savedCode) {
       document.getElementById("apiCode").value = savedCode;
-      loadData();
+      // Try loading from cache first
+      try {
+        const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+        if (cached && cached.code === savedCode && (Date.now() - cached.timestamp) < CACHE_TTL && cached.rounds?.length) {
+          const ageMin = Math.round((Date.now() - cached.timestamp) / 60000);
+          document.getElementById("cacheMsg").textContent = "Andmed cache'ist (" + ageMin + " min tagasi laetud)";
+          document.getElementById("cacheMsg").style.display = "block";
+          document.getElementById("refreshBtn").style.display = "inline-block";
+          displayResults(cached.rounds, cached.playerName || null);
+        } else {
+          loadData();
+        }
+      } catch (e) {
+        loadData();
+      }
     }
 
     function setProgress(pct, label) {
@@ -365,7 +384,7 @@
       return r.json();
     }
 
-    async function loadData() {
+    async function loadData(force) {
       const code = document.getElementById("apiCode").value.trim();
       const customVal = parseInt(document.getElementById("countCustom").value, 10);
       const count = customVal > 0 ? customVal : parseInt(document.getElementById("countSelect").value, 10);
@@ -538,6 +557,9 @@
           showError("Kehtivaid ringe ei leitud.");
         } else {
           localStorage.setItem("metrix_api_code", code);
+          localStorage.setItem(CACHE_KEY, JSON.stringify({ rounds: displayRounds, timestamp: Date.now(), code, playerName: myPlayerName }));
+          document.getElementById("cacheMsg").style.display = "none";
+          document.getElementById("refreshBtn").style.display = "inline-block";
           displayResults(displayRounds, myPlayerName);
         }
       } catch (e) {
