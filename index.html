@@ -353,10 +353,10 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.29 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.30 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
-    const CACHE_KEY = "metrix_rounds_cache_v2";
+    const CACHE_KEY = "metrix_rounds_cache_v3";
     const CACHE_TTL = 3600000; // 60 minutes
 
     let allRoundsCache = []; // all valid rounds from last fetch
@@ -502,58 +502,62 @@
 
             console.log("VALID:", id, data.Competition?.Date, "diff:", player.Diff);
 
-            // Player-level totals (only present when Metrix stats collected)
-            const parsePct  = s => (s && s !== "") ? parseFloat(s) : null;
-            const parseNum  = s => (s !== null && s !== undefined && s !== "") ? Number(s) : null;
-
-            // Overall putiprotsent = holes_with_putts / totalPutts * 100
-            const puttsHoles = validHoles.filter(h => h.ICP !== "" && h.IBP !== "");
-            const totalPutts = puttsHoles.reduce((s, h) => s + Number(h.ICP) + Number(h.IBP), 0);
-            const puttPct = puttsHoles.length > 0 && totalPutts > 0
-              ? puttsHoles.length / totalPutts * 100 : null;
-
-            // ICP putiprotsent: all holes where ICP>0, made=1 if IBP=0
-            const icpHoles = validHoles.filter(h => h.ICP !== "" && Number(h.ICP) > 0);
-            const icpTotal = icpHoles.reduce((s, h) => s + Number(h.ICP), 0);
-            const icpMade  = icpHoles.filter(h => Number(h.IBP) === 0).length;
-            const icpPct = icpHoles.length > 0 && icpTotal > 0
-              ? icpMade / icpTotal * 100 : null;
-
-            // Birdie putiprotsent: GRH=1 ja ICP>=1 (birdie attempt); made=ICP=1 ja IBP=0
-            const birdieHoles = validHoles.filter(h =>
-              h.Result !== "1" && h.ICP !== "" &&
-              Number(h.GRH) === 1 && Number(h.ICP) >= 1
+            // Detect whether Metrix stats were actually collected for this round
+            const hasStats = validHoles.some(h =>
+              Number(h.GRH) > 0 || Number(h.BUE) > 0 ||
+              Number(h.ICP) > 0 || Number(h.IBP) > 0
             );
-            const birdieMade = birdieHoles.filter(h =>
-              Number(h.ICP) === 1 && Number(h.IBP) === 0
-            ).length;
-            const birdiePct = birdieHoles.length > 0 ? birdieMade / birdieHoles.length * 100 : null;
 
-            // PAR putiprotsent
-            // GRH=1: include if ICP>=2 (missed birdie, attempting par); made=ICP=2 ja IBP=0
-            // GRH=0, Result=Par: include if ICP>=1 ja IBP=0 ja OCP=0; made=ICP=1
-            const parHoles = validHoles.filter(h => {
-              if (h.Result === "1") return false;
-              if (h.ICP === "") return false;
-              const grh = Number(h.GRH), icp = Number(h.ICP), ibp = Number(h.IBP), ocp = Number(h.OCP);
-              if (grh === 1) return icp >= 2;
-              if (h._par === null) return false;
-              return parseInt(h.Result, 10) === h._par && ibp === 0 && ocp === 0 && icp >= 1;
-            });
-            const parSaved = parHoles.filter(h => {
-              const grh = Number(h.GRH), icp = Number(h.ICP), ibp = Number(h.IBP);
-              return grh === 1 ? (icp === 2 && ibp === 0) : icp === 1;
-            }).length;
-            const parSavePct = parHoles.length > 0 ? parSaved / parHoles.length * 100 : null;
-
-            // Hole-in-one count
-            const hio = validHoles.filter(h => h.Result === "1").length;
-
-            // Raw counts for cumulative stats
-            const grhHits  = validHoles.filter(h => Number(h.GRH) === 1).length;
-            const bueHits  = validHoles.filter(h => Number(h.BUE) === 1).length;
+            // Always calculated (all rounds)
             const ocpTotal = validHoles.reduce((s, h) => s + Number(h.OCP || 0), 0);
             const penTotal = validHoles.reduce((s, h) => s + Number(h.PEN || 0), 0);
+            const hio      = validHoles.filter(h => h.Result === "1").length;
+
+            // Stats-only fields — null when not collected, excluded from cumulative totals
+            let grhHits = null, bueHits = null;
+            let puttsHoles = [], totalPutts = 0;
+            let icpTotal = 0, icpMade = 0;
+            let parHoles = [], parSaved = 0;
+            let birdieHoles = [], birdieMade = 0;
+
+            if (hasStats) {
+              grhHits = validHoles.filter(h => Number(h.GRH) === 1).length;
+              bueHits = validHoles.filter(h => Number(h.BUE) === 1).length;
+
+              // Putiprotsent: only holes where ICP+IBP > 0
+              puttsHoles = validHoles.filter(h =>
+                h.ICP !== "" && h.IBP !== "" && (Number(h.ICP) + Number(h.IBP)) > 0
+              );
+              totalPutts = puttsHoles.reduce((s, h) => s + Number(h.ICP) + Number(h.IBP), 0);
+
+              // ICP putiprotsent: all holes where ICP>0, made=1 if IBP=0
+              const icpHoles = validHoles.filter(h => h.ICP !== "" && Number(h.ICP) > 0);
+              icpTotal = icpHoles.reduce((s, h) => s + Number(h.ICP), 0);
+              icpMade  = icpHoles.filter(h => Number(h.IBP) === 0).length;
+
+              // Birdie putiprotsent: GRH=1 ja ICP>=1; made=ICP=1 ja IBP=0
+              birdieHoles = validHoles.filter(h =>
+                h.Result !== "1" && h.ICP !== "" &&
+                Number(h.GRH) === 1 && Number(h.ICP) >= 1
+              );
+              birdieMade = birdieHoles.filter(h =>
+                Number(h.ICP) === 1 && Number(h.IBP) === 0
+              ).length;
+
+              // PAR putiprotsent
+              parHoles = validHoles.filter(h => {
+                if (h.Result === "1") return false;
+                if (h.ICP === "") return false;
+                const grh = Number(h.GRH), icp = Number(h.ICP), ibp = Number(h.IBP), ocp = Number(h.OCP);
+                if (grh === 1) return icp >= 2;
+                if (h._par === null) return false;
+                return parseInt(h.Result, 10) === h._par && ibp === 0 && ocp === 0 && icp >= 1;
+              });
+              parSaved = parHoles.filter(h => {
+                const grh = Number(h.GRH), icp = Number(h.ICP), ibp = Number(h.IBP);
+                return grh === 1 ? (icp === 2 && ibp === 0) : icp === 1;
+              }).length;
+            }
 
             rounds.push({
               date:          data.Competition.Date || "",
@@ -566,21 +570,22 @@
               place:         player.Place,
               holeCount:     validHoles.length,
               hio,
+              hasStats,
               grhHits,
               bueHits,
               ocpTotal,
               penTotal,
-              puttHoles:     puttsHoles.length,
-              totalPutts,
-              icpAttempts:   icpTotal,
-              icpMade,
-              parOpportunities: parHoles.length,
-              parSaved,
-              birdieOpportunities: birdieHoles.length,
-              birdieMade,
+              puttHoles:        hasStats ? puttsHoles.length : null,
+              totalPutts:       hasStats ? totalPutts : null,
+              icpAttempts:      hasStats ? icpTotal : null,
+              icpMade:          hasStats ? icpMade : null,
+              parOpportunities: hasStats ? parHoles.length : null,
+              parSaved:         hasStats ? parSaved : null,
+              birdieOpportunities: hasStats ? birdieHoles.length : null,
+              birdieMade:       hasStats ? birdieMade : null,
               // Per-round values for trend charts only
-              grhPct:  validHoles.length > 0 ? grhHits / validHoles.length * 100 : null,
-              puttPct: puttsHoles.length > 0 && totalPutts > 0 ? puttsHoles.length / totalPutts * 100 : null,
+              grhPct:  hasStats && validHoles.length > 0 ? grhHits / validHoles.length * 100 : null,
+              puttPct: hasStats && puttsHoles.length > 0 && totalPutts > 0 ? puttsHoles.length / totalPutts * 100 : null,
             });
           }
 
@@ -701,24 +706,27 @@
       const avg10 = last10diffs.reduce((s, d) => s + d, 0) / last10diffs.length;
 
       const n = chrono.length;
-      const sumR   = key => chrono.reduce((s, r) => s + (r[key] || 0), 0);
-      const pct    = (num, den) => den > 0 ? (num / den * 100).toFixed(1) + "%" : "—";
+      const statsRounds = chrono.filter(r => r.hasStats);
+      const sumR  = (arr, key) => arr.reduce((s, r) => s + (r[key] || 0), 0);
+      const pct   = (num, den) => den > 0 ? (num / den * 100).toFixed(1) + "%" : "—";
       const avgFmt = (num, den) => den > 0 ? (num / den).toFixed(2) : "—";
 
-      const totalHIO   = sumR("hio");
-      const totalHoles = sumR("holeCount");
-      const grhSum     = sumR("grhHits");
-      const bueSum     = sumR("bueHits");
-      const ocpSum     = sumR("ocpTotal");
-      const penSum     = sumR("penTotal");
-      const puttH      = sumR("puttHoles");
-      const puttT      = sumR("totalPutts");
-      const icpAtt     = sumR("icpAttempts");
-      const icpMadeSum = sumR("icpMade");
-      const parOpp     = sumR("parOpportunities");
-      const parSvd     = sumR("parSaved");
-      const birdOpp    = sumR("birdieOpportunities");
-      const birdMade   = sumR("birdieMade");
+      const totalHIO   = sumR(chrono, "hio");
+      // Stats-only sums (only rounds where Metrix stats were collected)
+      const totalHoles = sumR(statsRounds, "holeCount");
+      const grhSum     = sumR(statsRounds, "grhHits");
+      const bueSum     = sumR(statsRounds, "bueHits");
+      const puttH      = sumR(statsRounds, "puttHoles");
+      const puttT      = sumR(statsRounds, "totalPutts");
+      const icpAtt     = sumR(statsRounds, "icpAttempts");
+      const icpMadeSum = sumR(statsRounds, "icpMade");
+      const parOpp     = sumR(statsRounds, "parOpportunities");
+      const parSvd     = sumR(statsRounds, "parSaved");
+      const birdOpp    = sumR(statsRounds, "birdieOpportunities");
+      const birdMade   = sumR(statsRounds, "birdieMade");
+      // OCP and PEN from all rounds
+      const ocpSum     = sumR(chrono, "ocpTotal");
+      const penSum     = sumR(chrono, "penTotal");
 
       const baseCards = activeFilter ? [
         { label: "Mängitud kordi",  value: filtered.length,    cls: "neutral" },
@@ -735,12 +743,14 @@
 
       const penAvg = n > 0 ? penSum / n : 0;
 
+      const ns = statsRounds.length;
+
       const statCards = [
-        { label: "GRH%",             value: pct(grhSum, totalHoles),  cls: "neutral", sub: totalHoles + " auku" },
-        { label: "BUE%",             value: pct(bueSum, totalHoles),  cls: "neutral", sub: totalHoles + " auku" },
+        { label: "GRH%",             value: pct(grhSum, totalHoles),  cls: "neutral", sub: ns + "/" + n + " ringist" },
+        { label: "BUE%",             value: pct(bueSum, totalHoles),  cls: "neutral", sub: ns + "/" + n + " ringist" },
         { label: "OCP",              value: avgFmt(ocpSum, n),         cls: "neutral", sub: n + " ringist" },
         { label: "Trahvid",          value: avgFmt(penSum, n),         cls: penAvg > 0 ? "bad" : "neutral", sub: n + " ringist" },
-        { label: "Putiprotsent",     value: pct(puttH, puttT),        cls: "neutral", sub: puttH + " auku" },
+        { label: "Putiprotsent",     value: pct(puttH, puttT),        cls: "neutral", sub: ns + "/" + n + " ringist" },
         { label: "ICP putiprot.",    value: pct(icpMadeSum, icpAtt),  cls: "neutral", sub: icpAtt + " katset" },
         { label: "PAR putiprotsent", value: pct(parSvd, parOpp),      cls: "neutral", sub: parOpp + " katset" },
         { label: "Birdie putiprot.", value: pct(birdMade, birdOpp),   cls: "neutral", sub: birdOpp + " katset" },
