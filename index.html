@@ -319,7 +319,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.14 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.15 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const savedCode = localStorage.getItem("metrix_api_code");
@@ -381,9 +381,15 @@
 
           for (const data of results) {
             if (!data || !data.Competition) continue;
+            const id = data.Competition.ID;
+            console.log("fetched id:", id, "competition date:", data.Competition?.Date);
 
             const compResults = data.Competition.Results;
-            if (!compResults || !compResults.length) continue;
+            console.log("results count:", compResults?.length);
+            if (!compResults || !compResults.length) {
+              console.log("no results, skip");
+              continue;
+            }
 
             // On first valid round, learn UserID and name from Results[0]
             if (myUserID === null) {
@@ -391,13 +397,22 @@
               myPlayerName = compResults[0].Name || null;
             }
             const player = compResults.find(r => String(r.UserID) === myUserID);
-            if (!player) continue;
+            if (!player) {
+              console.log("player not found, skip");
+              continue;
+            }
 
             // Condition 3: DNF === null
-            if (player.DNF !== null && player.DNF !== undefined) continue;
+            if (player.DNF !== null && player.DNF !== undefined) {
+              console.log("DNF, skip");
+              continue;
+            }
 
             // Condition 2: Sum > 0
-            if (!(Number(player.Sum) > 0)) continue;
+            if (!(Number(player.Sum) > 0)) {
+              console.log("Sum=0, skip");
+              continue;
+            }
 
             // Condition 4: PlayerResults has at least one hole object.
             // Mixed format possible: [[], {Result:"4",...}, []]
@@ -405,6 +420,8 @@
             const pr = player.PlayerResults || [];
             const validHoles = pr.filter(h => h !== null && !Array.isArray(h) && typeof h === "object");
             if (validHoles.length === 0) continue;
+
+            console.log("VALID:", id, data.Competition?.Date, "diff:", player.Diff);
 
             // Compute per-hole stats from PlayerResults (fields are strings "0"/"1")
             const totalHoles = validHoles.length;
