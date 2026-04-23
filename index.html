@@ -319,7 +319,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.15 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.16 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const savedCode = localStorage.getItem("metrix_api_code");
@@ -392,11 +392,12 @@
             }
 
             // On first valid round, learn UserID and name from Results[0]
-            if (myUserID === null) {
+            if (!myUserID && compResults.length > 0) {
               myUserID = String(compResults[0].UserID);
               myPlayerName = compResults[0].Name || null;
             }
-            const player = compResults.find(r => String(r.UserID) === myUserID);
+            console.log("myUserID:", myUserID, "looking in:", compResults.map(r => r.UserID));
+            const player = compResults.find(r => String(r.UserID) === String(myUserID));
             if (!player) {
               console.log("player not found, skip");
               continue;
