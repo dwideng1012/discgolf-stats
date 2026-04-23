@@ -265,12 +265,13 @@
       <input type="text" id="apiCode" value="" autocomplete="off" spellcheck="false" placeholder="sisesta API kood">
     </div>
     <div class="field">
-      <label>Voore</label>
+      <label>Ringe</label>
       <select id="countSelect">
         <option value="10">10</option>
         <option value="25">25</option>
         <option value="50" selected>50</option>
         <option value="100">100</option>
+        <option value="99999">K&otilde;ik</option>
       </select>
     </div>
     <button id="loadBtn" onclick="loadData()">Laadi</button>
@@ -298,7 +299,7 @@
     </div>
 
     <div class="table-section">
-      <h2>Viimased voorud</h2>
+      <h2>Viimased ringid</h2>
       <table>
         <thead>
           <tr>
@@ -319,7 +320,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.17 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.18 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const savedCode = localStorage.getItem("metrix_api_code");
@@ -458,7 +459,7 @@
         setProgress(100, "Valmis!");
 
         if (rounds.length === 0) {
-          showError("Kehtivaid voore ei leitud.");
+          showError("Kehtivaid ringe ei leitud.");
         } else {
           localStorage.setItem("metrix_api_code", code);
           displayResults(rounds, myPlayerName);
@@ -534,7 +535,7 @@
       const bar = document.getElementById("filterBar");
       if (activeFilter) {
         document.getElementById("filterCourseName").textContent = activeFilter.name;
-        document.getElementById("filterCount").textContent = filtered.length + " vooru";
+        document.getElementById("filterCount").textContent = filtered.length + " ringi";
         bar.style.display = "flex";
       } else {
         bar.style.display = "none";
@@ -552,13 +553,13 @@
 
       const cards = activeFilter ? [
         { label: "Mängitud kordi",  value: filtered.length,    cls: "neutral" },
-        { label: "Parim voor",      value: fmtDiff(best),      cls: diffClass(best) },
-        { label: "Halvim voor",     value: fmtDiff(worst),     cls: diffClass(worst) },
+        { label: "Parim ring",      value: fmtDiff(best),      cls: diffClass(best) },
+        { label: "Halvim ring",     value: fmtDiff(worst),     cls: diffClass(worst) },
         { label: "Keskmine diff",   value: fmtDiff(avg, 1),    cls: diffClass(avg) },
       ] : [
-        { label: "Voore kokku",      value: allRounds.length,   cls: "neutral" },
-        { label: "Parim voor",       value: fmtDiff(best),      cls: diffClass(best) },
-        { label: "Halvim voor",      value: fmtDiff(worst),     cls: diffClass(worst) },
+        { label: "Ringe kokku",      value: allRounds.length,   cls: "neutral" },
+        { label: "Parim ring",       value: fmtDiff(best),      cls: diffClass(best) },
+        { label: "Halvim ring",      value: fmtDiff(worst),     cls: diffClass(worst) },
         { label: "Keskmine diff",    value: fmtDiff(avg, 1),    cls: diffClass(avg) },
         { label: "Viimane 10 (avg)", value: fmtDiff(avg10, 1),  cls: diffClass(avg10) },
       ];
