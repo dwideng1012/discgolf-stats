@@ -341,7 +341,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.24 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.25 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const savedCode = localStorage.getItem("metrix_api_code");
@@ -464,52 +464,39 @@
             const puttPct = puttsHoles.length > 0 && totalPutts > 0
               ? puttsHoles.length / totalPutts * 100 : null;
 
-            // ICP putiprotsent (3-10m): holes where IBP=0 and ICP>0 (require IBP data present)
-            const icpHoles = validHoles.filter(h => h.ICP !== "" && h.IBP !== "" && Number(h.IBP) === 0 && Number(h.ICP) > 0);
+            // ICP putiprotsent: all holes where ICP>0, made=1 if IBP=0
+            const icpHoles = validHoles.filter(h => h.ICP !== "" && Number(h.ICP) > 0);
             const icpTotal = icpHoles.reduce((s, h) => s + Number(h.ICP), 0);
+            const icpMade  = icpHoles.filter(h => Number(h.IBP) === 0).length;
             const icpPct = icpHoles.length > 0 && icpTotal > 0
-              ? icpHoles.length / icpTotal * 100 : null;
+              ? icpMade / icpTotal * 100 : null;
 
-            // PAR putiprotsent (uses par from Tracks by index via h._par)
-            const parHoles = validHoles.filter(h => {
-              if (h.Result === "1") return false;
-              if (h.ICP === "") return false;
-              if (h._par === null) return false;
-              const grh = Number(h.GRH), icp = Number(h.ICP), ibp = Number(h.IBP), ocp = Number(h.OCP), bue = Number(h.BUE);
-              const result = parseInt(h.Result, 10);
-              if (grh === 1) {
-                if (ibp >= 1) return false;   // IBP tap-in → exclude
-                if (ocp >= 1) return false;   // OCP → exclude
-                if (bue === 1 && icp === 0) return false; // BUE, ICP=0 → exclude
-                if (icp === 1) return false;  // birdie putt → exclude
-                return icp >= 2;
-              } else {
-                if (result !== h._par) return false; // GRH=0: only par holes
-                if (ibp >= 1) return false;
-                if (ocp >= 1) return false;
-                return icp >= 1;
-              }
-            });
-            const parSaved = parHoles.filter(h =>
-              Number(h.GRH) === 1 ? Number(h.ICP) === 2 : Number(h.ICP) === 1
-            ).length;
-            const parSavePct = parHoles.length > 0 ? parSaved / parHoles.length * 100 : null;
-
-            // Birdie putiprotsent: GRH=1 and result = par-1 (uses Tracks par via h._par)
-            const birdieHoles = validHoles.filter(h => {
-              if (h.Result === "1") return false;
-              if (h.ICP === "") return false;
-              if (h._par === null) return false;
-              if (Number(h.GRH) !== 1) return false;
-              if (parseInt(h.Result, 10) !== h._par - 1) return false;
-              // IBP=1, ICP=0 → BUE/tap-in, exclude
-              if (Number(h.IBP) === 1 && Number(h.ICP) === 0) return false;
-              return true;
-            });
+            // Birdie putiprotsent: GRH=1 ja ICP>=1 (birdie attempt); made=ICP=1 ja IBP=0
+            const birdieHoles = validHoles.filter(h =>
+              h.Result !== "1" && h.ICP !== "" &&
+              Number(h.GRH) === 1 && Number(h.ICP) >= 1
+            );
             const birdieMade = birdieHoles.filter(h =>
               Number(h.ICP) === 1 && Number(h.IBP) === 0
             ).length;
             const birdiePct = birdieHoles.length > 0 ? birdieMade / birdieHoles.length * 100 : null;
+
+            // PAR putiprotsent
+            // GRH=1: include if ICP>=2 (missed birdie, attempting par); made=ICP=2 ja IBP=0
+            // GRH=0, Result=Par: include if ICP>=1 ja IBP=0 ja OCP=0; made=ICP=1
+            const parHoles = validHoles.filter(h => {
+              if (h.Result === "1") return false;
+              if (h.ICP === "") return false;
+              const grh = Number(h.GRH), icp = Number(h.ICP), ibp = Number(h.IBP), ocp = Number(h.OCP);
+              if (grh === 1) return icp >= 2;
+              if (h._par === null) return false;
+              return parseInt(h.Result, 10) === h._par && ibp === 0 && ocp === 0 && icp >= 1;
+            });
+            const parSaved = parHoles.filter(h => {
+              const grh = Number(h.GRH), icp = Number(h.ICP), ibp = Number(h.IBP);
+              return grh === 1 ? (icp === 2 && ibp === 0) : icp === 1;
+            }).length;
+            const parSavePct = parHoles.length > 0 ? parSaved / parHoles.length * 100 : null;
 
             // Hole-in-one count
             const hio = validHoles.filter(h => h.Result === "1").length;
