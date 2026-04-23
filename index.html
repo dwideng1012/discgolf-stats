@@ -341,7 +341,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.21 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.22 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const savedCode = localStorage.getItem("metrix_api_code");
@@ -384,8 +384,8 @@
         const allIds = list.my_competitions || [];
         if (!allIds.length) throw new Error("Võistluste nimekiri on tühi.");
 
-        // Take last N (newest first after reverse)
-        const toFetch = allIds.slice(-count).reverse();
+        // Reverse full list (newest first) then take first N
+        const toFetch = [...allIds].reverse().slice(0, count);
 
         const BATCH = 5;
         const rounds = [];
@@ -462,19 +462,29 @@
             const puttPct = puttsHoles.length > 0 && totalPutts > 0
               ? puttsHoles.length / totalPutts * 100 : null;
 
-            // ICP putiprotsent (3-10m): holes where IBP=0 and ICP>0
-            const icpHoles = validHoles.filter(h => h.ICP !== "" && Number(h.IBP) === 0 && Number(h.ICP) > 0);
+            // ICP putiprotsent (3-10m): holes where IBP=0 and ICP>0 (require IBP data present)
+            const icpHoles = validHoles.filter(h => h.ICP !== "" && h.IBP !== "" && Number(h.IBP) === 0 && Number(h.ICP) > 0);
             const icpTotal = icpHoles.reduce((s, h) => s + Number(h.ICP), 0);
             const icpPct = icpHoles.length > 0 && icpTotal > 0
               ? icpHoles.length / icpTotal * 100 : null;
 
-            // PAR save putiprotsent
+            // PAR putiprotsent
             const parHoles = validHoles.filter(h => {
               if (h.Result === "1") return false;
-              if (Number(h.OCP) >= 1) return false;
-              if (Number(h.Diff) !== 0) return false;
-              if (Number(h.GRH) === 1 && Number(h.ICP) === 1) return false; // birdie putt
-              return h.ICP !== "";
+              if (h.ICP === "") return false;
+              const grh = Number(h.GRH), icp = Number(h.ICP), ibp = Number(h.IBP), ocp = Number(h.OCP), bue = Number(h.BUE);
+              if (grh === 1) {
+                if (ibp >= 1) return false;   // IBP tap-in → exclude
+                if (ocp >= 1) return false;   // OCP → exclude
+                if (bue === 1 && icp === 0) return false; // BUE, ICP=0 → exclude
+                if (icp === 1) return false;  // birdie putt → exclude
+                return icp >= 2;
+              } else {
+                if (Number(h.Diff) !== 0) return false; // GRH=0: only par holes
+                if (ibp >= 1) return false;
+                if (ocp >= 1) return false;
+                return icp >= 1;
+              }
             });
             const parSaved = parHoles.filter(h =>
               Number(h.GRH) === 1 ? Number(h.ICP) === 2 : Number(h.ICP) === 1
@@ -484,12 +494,15 @@
             // Birdie putiprotsent: GRH=1 and Diff=-1
             const birdieHoles = validHoles.filter(h => {
               if (h.Result === "1") return false;
+              if (h.ICP === "") return false;
               if (Number(h.GRH) !== 1 || Number(h.Diff) !== -1) return false;
-              if (Number(h.IBP) === 1) return false;
-              if (Number(h.ICP) === 0 && Number(h.IBP) === 0) return false;
-              return h.ICP !== "";
+              // IBP=1, ICP=0 → BUE/tap-in, exclude; all other GRH=1,Diff=-1 included
+              if (Number(h.IBP) === 1 && Number(h.ICP) === 0) return false;
+              return true;
             });
-            const birdieMade = birdieHoles.filter(h => Number(h.ICP) === 1).length;
+            const birdieMade = birdieHoles.filter(h =>
+              Number(h.ICP) === 1 && Number(h.IBP) === 0
+            ).length;
             const birdiePct = birdieHoles.length > 0 ? birdieMade / birdieHoles.length * 100 : null;
 
             // Hole-in-one count
@@ -666,7 +679,7 @@
         { label: "Trahvid",       value: fmtStat(pen,        v => v.toFixed(1)),       cls: pen && pen.val > 0 ? "bad" : "neutral", sub: sub(pen) },
         { label: "Putiprotsent",  value: fmtStat(puttPct,    v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(puttPct) },
         { label: "ICP putiprot.", value: fmtStat(icpAvg,     v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(icpAvg) },
-        { label: "PAR save%",     value: fmtStat(parSaveAvg, v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(parSaveAvg) },
+        { label: "PAR putiprotsent", value: fmtStat(parSaveAvg, v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(parSaveAvg) },
         { label: "Birdie putiprot.", value: fmtStat(birdieAvg, v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(birdieAvg) },
         { label: "Hole-in-one",   value: totalHIO,                                     cls: totalHIO > 0 ? "good" : "neutral", sub: "kokku" },
       ];
