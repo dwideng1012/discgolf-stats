@@ -118,6 +118,11 @@
       letter-spacing: 0.06em;
       margin-bottom: 10px;
     }
+    .card-sub {
+      font-size: 0.65rem;
+      color: var(--muted);
+      margin-top: 6px;
+    }
     .card-value {
       font-family: 'Courier New', monospace;
       font-size: 2rem;
@@ -298,6 +303,16 @@
       <canvas id="trendChart" width="600" height="200"></canvas>
     </div>
 
+    <div class="section" id="grhChartWrap" style="display:none">
+      <h2>GRH% trend</h2>
+      <canvas id="grhChart" width="600" height="160"></canvas>
+    </div>
+
+    <div class="section" id="puttsChartWrap" style="display:none">
+      <h2>Puttide arv ringis &mdash; trend</h2>
+      <canvas id="puttsChart" width="600" height="160"></canvas>
+    </div>
+
     <div class="table-section">
       <h2>Viimased ringid</h2>
       <table>
@@ -320,7 +335,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.18 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.19 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const savedCode = localStorage.getItem("metrix_api_code");
@@ -430,11 +445,15 @@
 
             console.log("VALID:", id, data.Competition?.Date, "diff:", player.Diff);
 
-            // Compute per-hole stats from PlayerResults (fields are strings "0"/"1")
-            const totalHoles = validHoles.length;
-            const bue = validHoles.filter(h => h.BUE === "1").length;
-            const grh = validHoles.filter(h => h.GRH === "1").length;
-            const icp = validHoles.filter(h => h.ICP === "1").length;
+            // Player-level totals (only present when Metrix stats collected)
+            const parsePct  = s => (s && s !== "") ? parseFloat(s) : null;
+            const parseNum  = s => (s !== null && s !== undefined && s !== "") ? Number(s) : null;
+
+            // Per-hole putts: ICP + IBP per hole, sum across all holes
+            const puttsHoles = validHoles.filter(h => h.ICP !== "" && h.IBP !== "");
+            const putts = puttsHoles.length > 0
+              ? puttsHoles.reduce((sum, h) => sum + Number(h.ICP) + Number(h.IBP), 0)
+              : null;
 
             rounds.push({
               date:     data.Competition.Date || "",
@@ -444,10 +463,12 @@
               sum:      Number(player.Sum),
               diff:     Number(player.Diff),
               place:    player.Place,
-              holes:    totalHoles,
-              bue,
-              grh,
-              icp,
+              holes:    validHoles.length,
+              grhPct:   parsePct(player.GRHTotal),
+              buePct:   parsePct(player.BUETotal),
+              ocpN:     parseNum(player.OCPTotal),
+              penN:     parseNum(player.PenaltiesTotal),
+              putts,
             });
           }
 
@@ -551,7 +572,22 @@
       const last10diffs = activeFilter ? diffs : diffs.slice(-10);
       const avg10 = last10diffs.reduce((s, d) => s + d, 0) / last10diffs.length;
 
-      const cards = activeFilter ? [
+      // Compute optional stat averages (skip rounds with null / missing data)
+      const statAvg = (key) => {
+        const vals = chrono.map(r => r[key]).filter(v => v !== null && !isNaN(v));
+        return vals.length ? { val: vals.reduce((s, v) => s + v, 0) / vals.length, n: vals.length } : null;
+      };
+      const grh   = statAvg("grhPct");
+      const bue   = statAvg("buePct");
+      const ocp   = statAvg("ocpN");
+      const pen   = statAvg("penN");
+      const putts = statAvg("putts");
+      const total = chrono.length;
+
+      const fmtStat = (res, fmt) => res ? fmt(res.val) : "—";
+      const sub     = (res) => res ? res.n + "/" + total + " ringist" : "";
+
+      const baseCards = activeFilter ? [
         { label: "Mängitud kordi",  value: filtered.length,    cls: "neutral" },
         { label: "Parim ring",      value: fmtDiff(best),      cls: diffClass(best) },
         { label: "Halvim ring",     value: fmtDiff(worst),     cls: diffClass(worst) },
@@ -564,10 +600,20 @@
         { label: "Viimane 10 (avg)", value: fmtDiff(avg10, 1),  cls: diffClass(avg10) },
       ];
 
-      document.getElementById("statsGrid").innerHTML = cards.map(c => `
+      const statCards = [
+        { label: "GRH%",     value: fmtStat(grh,   v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(grh) },
+        { label: "BUE%",     value: fmtStat(bue,   v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(bue) },
+        { label: "OCP",      value: fmtStat(ocp,   v => v.toFixed(1)),       cls: "neutral", sub: sub(ocp) },
+        { label: "Trahvid",  value: fmtStat(pen,   v => v.toFixed(1)),       cls: pen && pen.val > 0 ? "bad" : "neutral", sub: sub(pen) },
+        { label: "Putid/ring", value: fmtStat(putts, v => v.toFixed(1)),     cls: "neutral", sub: sub(putts) },
+      ];
+
+      const allCards = [...baseCards, ...statCards];
+      document.getElementById("statsGrid").innerHTML = allCards.map(c => `
         <div class="card">
           <div class="card-label">${c.label}</div>
           <div class="card-value ${c.cls}">${c.value}</div>
+          ${c.sub ? `<div class="card-sub">${c.sub}</div>` : ""}
         </div>
       `).join("");
 
@@ -591,6 +637,101 @@
       }).join("");
 
       drawChart(chrono);
+
+      // GRH% trend — only show if at least 2 rounds have data
+      const grhPoints = chrono.filter(r => r.grhPct !== null);
+      document.getElementById("grhChartWrap").style.display = grhPoints.length >= 2 ? "block" : "none";
+      if (grhPoints.length >= 2) drawLineChart("grhChart", grhPoints, r => r.grhPct, { color: "#3b82f6", suffix: "%" });
+
+      // Putts/ring trend
+      const puttsPoints = chrono.filter(r => r.putts !== null);
+      document.getElementById("puttsChartWrap").style.display = puttsPoints.length >= 2 ? "block" : "none";
+      if (puttsPoints.length >= 2) drawLineChart("puttsChart", puttsPoints, r => r.putts, { color: "#a78bfa", suffix: "" });
+    }
+
+    function drawLineChart(canvasId, rounds, getValue, { color = "#10b981", suffix = "" } = {}) {
+      const canvas = document.getElementById(canvasId);
+      const dpr = window.devicePixelRatio || 1;
+      const W = canvas.parentElement.clientWidth;
+      const H = 160;
+      canvas.width  = W * dpr;
+      canvas.height = H * dpr;
+      canvas.style.width  = W + "px";
+      canvas.style.height = H + "px";
+      const ctx = canvas.getContext("2d");
+      ctx.scale(dpr, dpr);
+
+      const vals  = rounds.map(getValue);
+      const minV  = Math.min(...vals);
+      const maxV  = Math.max(...vals);
+      const range = maxV - minV || 1;
+      const pad   = { top: 12, right: 14, bottom: 32, left: 44 };
+      const cw    = W - pad.left - pad.right;
+      const ch    = H - pad.top  - pad.bottom;
+
+      // Grid lines
+      for (let i = 0; i <= 4; i++) {
+        const y   = pad.top + (ch / 4) * i;
+        const val = maxV - (range / 4) * i;
+        ctx.strokeStyle = "#2a2d3e";
+        ctx.lineWidth   = 1;
+        ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cw, y); ctx.stroke();
+        ctx.fillStyle  = "#64748b";
+        ctx.font       = "10px 'Courier New', monospace";
+        ctx.textAlign  = "right";
+        ctx.fillText(val.toFixed(suffix === "%" ? 0 : 1) + suffix, pad.left - 5, y + 4);
+      }
+
+      const pts = rounds.map((r, i) => ({
+        x: pad.left + (i / (rounds.length - 1)) * cw,
+        y: pad.top  + ch * (1 - (getValue(r) - minV) / range),
+      }));
+
+      // Gradient fill
+      const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + ch);
+      const hex  = color.replace("#", "");
+      const ri   = parseInt(hex.slice(0,2),16), gi = parseInt(hex.slice(2,4),16), bi = parseInt(hex.slice(4,6),16);
+      grad.addColorStop(0, `rgba(${ri},${gi},${bi},0.25)`);
+      grad.addColorStop(1, `rgba(${ri},${gi},${bi},0)`);
+
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.lineTo(pts[pts.length-1].x, pad.top + ch);
+      ctx.lineTo(pts[0].x, pad.top + ch);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Line
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = 2;
+      ctx.lineJoin    = "round";
+      ctx.stroke();
+
+      // Dots
+      for (const p of pts) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+        ctx.fillStyle   = color;
+        ctx.strokeStyle = "#0f1117";
+        ctx.lineWidth   = 1.5;
+        ctx.fill(); ctx.stroke();
+      }
+
+      // X-axis labels
+      const maxL = Math.min(rounds.length, 8);
+      const step = Math.ceil((rounds.length - 1) / (maxL - 1)) || 1;
+      ctx.fillStyle = "#64748b"; ctx.font = "10px system-ui"; ctx.textAlign = "center";
+      for (let i = 0; i < rounds.length; i += step)
+        ctx.fillText(rounds[i].date.slice(5), pts[i].x, H - pad.bottom + 16);
+      if ((rounds.length - 1) % step !== 0) {
+        const last = rounds.length - 1;
+        ctx.fillText(rounds[last].date.slice(5), pts[last].x, H - pad.bottom + 16);
+      }
     }
 
     function drawChart(rounds) {
