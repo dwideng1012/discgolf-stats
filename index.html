@@ -341,7 +341,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.23 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.24 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const savedCode = localStorage.getItem("metrix_api_code");
@@ -384,8 +384,8 @@
         const allIds = list.my_competitions || [];
         if (!allIds.length) throw new Error("Võistluste nimekiri on tühi.");
 
-        // Reverse full list (newest first) then take first N
-        const toFetch = [...allIds].reverse().slice(0, count);
+        // Fetch ALL IDs (newest first); valid rounds are sliced to count after filtering
+        const toFetch = [...allIds].reverse();
 
         const BATCH = 5;
         const rounds = [];
@@ -438,8 +438,8 @@
             // Build validHoles with par value from Tracks by original index
             const validHoles = pr.reduce((acc, h, i) => {
               if (h !== null && !Array.isArray(h) && typeof h === "object") {
-                const par = tracks[i] ? parseInt(tracks[i].Par, 10) : null;
-                acc.push({ ...h, _par: par });
+                const par = parseInt(tracks[i]?.Par || 0, 10);
+                acc.push({ ...h, _par: par || null });
               }
               return acc;
             }, []);
@@ -543,11 +543,15 @@
 
         setProgress(100, "Valmis!");
 
-        if (rounds.length === 0) {
+        // Sort all valid rounds newest-first, then take the requested count
+        rounds.sort((a, b) => b.date.localeCompare(a.date));
+        const displayRounds = rounds.slice(0, count);
+
+        if (displayRounds.length === 0) {
           showError("Kehtivaid ringe ei leitud.");
         } else {
           localStorage.setItem("metrix_api_code", code);
-          displayResults(rounds, myPlayerName);
+          displayResults(displayRounds, myPlayerName);
         }
       } catch (e) {
         showError("Viga: " + e.message);
