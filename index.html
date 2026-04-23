@@ -309,7 +309,7 @@
     </div>
 
     <div class="section" id="puttsChartWrap" style="display:none">
-      <h2>Puttide arv ringis &mdash; trend</h2>
+      <h2>Putiprotsent &mdash; trend</h2>
       <canvas id="puttsChart" width="600" height="160"></canvas>
     </div>
 
@@ -335,7 +335,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.19 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.20 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const savedCode = localStorage.getItem("metrix_api_code");
@@ -449,11 +449,15 @@
             const parsePct  = s => (s && s !== "") ? parseFloat(s) : null;
             const parseNum  = s => (s !== null && s !== undefined && s !== "") ? Number(s) : null;
 
-            // Per-hole putts: ICP + IBP per hole, sum across all holes
+            // Putiprotsent = holes / totalPutts * 100 (higher = better)
             const puttsHoles = validHoles.filter(h => h.ICP !== "" && h.IBP !== "");
-            const putts = puttsHoles.length > 0
-              ? puttsHoles.reduce((sum, h) => sum + Number(h.ICP) + Number(h.IBP), 0)
+            const totalPutts = puttsHoles.reduce((s, h) => s + Number(h.ICP) + Number(h.IBP), 0);
+            const puttPct = puttsHoles.length > 0 && totalPutts > 0
+              ? puttsHoles.length / totalPutts * 100
               : null;
+
+            // Hole-in-one: Result === "1"
+            const hio = validHoles.filter(h => h.Result === "1").length;
 
             rounds.push({
               date:     data.Competition.Date || "",
@@ -468,7 +472,8 @@
               buePct:   parsePct(player.BUETotal),
               ocpN:     parseNum(player.OCPTotal),
               penN:     parseNum(player.PenaltiesTotal),
-              putts,
+              puttPct,
+              hio,
             });
           }
 
@@ -577,12 +582,13 @@
         const vals = chrono.map(r => r[key]).filter(v => v !== null && !isNaN(v));
         return vals.length ? { val: vals.reduce((s, v) => s + v, 0) / vals.length, n: vals.length } : null;
       };
-      const grh   = statAvg("grhPct");
-      const bue   = statAvg("buePct");
-      const ocp   = statAvg("ocpN");
-      const pen   = statAvg("penN");
-      const putts = statAvg("putts");
-      const total = chrono.length;
+      const grh     = statAvg("grhPct");
+      const bue     = statAvg("buePct");
+      const ocp     = statAvg("ocpN");
+      const pen     = statAvg("penN");
+      const puttPct = statAvg("puttPct");
+      const totalHIO = chrono.reduce((s, r) => s + (r.hio || 0), 0);
+      const total   = chrono.length;
 
       const fmtStat = (res, fmt) => res ? fmt(res.val) : "—";
       const sub     = (res) => res ? res.n + "/" + total + " ringist" : "";
@@ -601,11 +607,12 @@
       ];
 
       const statCards = [
-        { label: "GRH%",     value: fmtStat(grh,   v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(grh) },
-        { label: "BUE%",     value: fmtStat(bue,   v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(bue) },
-        { label: "OCP",      value: fmtStat(ocp,   v => v.toFixed(1)),       cls: "neutral", sub: sub(ocp) },
-        { label: "Trahvid",  value: fmtStat(pen,   v => v.toFixed(1)),       cls: pen && pen.val > 0 ? "bad" : "neutral", sub: sub(pen) },
-        { label: "Putid/ring", value: fmtStat(putts, v => v.toFixed(1)),     cls: "neutral", sub: sub(putts) },
+        { label: "GRH%",        value: fmtStat(grh,     v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(grh) },
+        { label: "BUE%",        value: fmtStat(bue,     v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(bue) },
+        { label: "OCP",         value: fmtStat(ocp,     v => v.toFixed(1)),       cls: "neutral", sub: sub(ocp) },
+        { label: "Trahvid",     value: fmtStat(pen,     v => v.toFixed(1)),       cls: pen && pen.val > 0 ? "bad" : "neutral", sub: sub(pen) },
+        { label: "Putiprotsent",value: fmtStat(puttPct, v => v.toFixed(1) + "%"), cls: "neutral", sub: sub(puttPct) },
+        { label: "Hole-in-one", value: totalHIO,                                  cls: totalHIO > 0 ? "good" : "neutral", sub: "kokku" },
       ];
 
       const allCards = [...baseCards, ...statCards];
@@ -643,10 +650,10 @@
       document.getElementById("grhChartWrap").style.display = grhPoints.length >= 2 ? "block" : "none";
       if (grhPoints.length >= 2) drawLineChart("grhChart", grhPoints, r => r.grhPct, { color: "#3b82f6", suffix: "%" });
 
-      // Putts/ring trend
-      const puttsPoints = chrono.filter(r => r.putts !== null);
+      // Putiprotsent trend
+      const puttsPoints = chrono.filter(r => r.puttPct !== null);
       document.getElementById("puttsChartWrap").style.display = puttsPoints.length >= 2 ? "block" : "none";
-      if (puttsPoints.length >= 2) drawLineChart("puttsChart", puttsPoints, r => r.putts, { color: "#a78bfa", suffix: "" });
+      if (puttsPoints.length >= 2) drawLineChart("puttsChart", puttsPoints, r => r.puttPct, { color: "#a78bfa", suffix: "%" });
     }
 
     function drawLineChart(canvasId, rounds, getValue, { color = "#10b981", suffix = "" } = {}) {
