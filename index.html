@@ -319,7 +319,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.16 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.17 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const savedCode = localStorage.getItem("metrix_api_code");
@@ -391,26 +391,24 @@
               continue;
             }
 
-            // On first valid round, learn UserID and name from Results[0]
-            if (!myUserID && compResults.length > 0) {
-              myUserID = String(compResults[0].UserID);
-              myPlayerName = compResults[0].Name || null;
-            }
+            // Find candidate: use stored myUserID if known, else tentatively try Results[0]
             console.log("myUserID:", myUserID, "looking in:", compResults.map(r => r.UserID));
-            const player = compResults.find(r => String(r.UserID) === String(myUserID));
-            if (!player) {
+            const candidate = myUserID
+              ? compResults.find(r => String(r.UserID) === String(myUserID))
+              : compResults[0];
+            if (!candidate) {
               console.log("player not found, skip");
               continue;
             }
 
             // Condition 3: DNF === null
-            if (player.DNF !== null && player.DNF !== undefined) {
+            if (candidate.DNF !== null && candidate.DNF !== undefined) {
               console.log("DNF, skip");
               continue;
             }
 
             // Condition 2: Sum > 0
-            if (!(Number(player.Sum) > 0)) {
+            if (!(Number(candidate.Sum) > 0)) {
               console.log("Sum=0, skip");
               continue;
             }
@@ -418,9 +416,16 @@
             // Condition 4: PlayerResults has at least one hole object.
             // Mixed format possible: [[], {Result:"4",...}, []]
             // Only skip if ALL elements are empty arrays.
-            const pr = player.PlayerResults || [];
+            const pr = candidate.PlayerResults || [];
             const validHoles = pr.filter(h => h !== null && !Array.isArray(h) && typeof h === "object");
             if (validHoles.length === 0) continue;
+
+            // Round is valid — lock in myUserID from the first valid round only
+            const player = candidate;
+            if (!myUserID) {
+              myUserID = String(player.UserID);
+              myPlayerName = player.Name || null;
+            }
 
             console.log("VALID:", id, data.Competition?.Date, "diff:", player.Diff);
 
