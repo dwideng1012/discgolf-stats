@@ -196,11 +196,9 @@
     td.good { color: var(--green); }
     td.bad  { color: var(--red); }
     td.zero { color: var(--muted); }
-    td.course { color: var(--accent); font-size: 0.8rem; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-    td.course:hover { text-decoration: underline; }
-    td.competition { color: var(--text); font-size: 0.8rem; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-    td.competition:hover { color: var(--accent); text-decoration: underline; }
-    td.course .filter-icon {
+    td.course, td.competition { color: var(--accent); font-size: 0.8rem; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+    td.course:hover, td.competition:hover { text-decoration: underline; }
+    td.course .filter-icon, td.competition .filter-icon {
       display: inline-block;
       opacity: 0;
       color: var(--muted);
@@ -211,8 +209,8 @@
       user-select: none;
       vertical-align: middle;
     }
-    tr:hover td.course .filter-icon { opacity: 1; }
-    td.course .filter-icon:hover { color: var(--accent); }
+    tr:hover td.course .filter-icon, tr:hover td.competition .filter-icon { opacity: 1; }
+    td.course .filter-icon:hover, td.competition .filter-icon:hover { color: var(--accent); }
 
     #filterBar {
       display: none;
@@ -353,7 +351,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.30 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.31 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const CACHE_KEY = "metrix_rounds_cache_v3";
@@ -622,12 +620,17 @@
     let allRounds = [];
     let activeFilter = null; // {type:'course'|'competition', id, name} or null
 
-    // Event delegation: course name → open Metrix; filter icon → set course filter; competition name → set competition filter
+    // Event delegation: course/competition name → open Metrix; filter icon → set filter
     document.getElementById("roundsBody").addEventListener("click", function(e) {
       const filterIcon = e.target.closest(".filter-icon");
       if (filterIcon) {
-        const row = filterIcon.closest("tr");
-        setFilter("course", row.dataset.courseId, row.dataset.courseName);
+        const td = filterIcon.closest("td");
+        if (td.classList.contains("competition")) {
+          setFilter("competition", td.dataset.competitionId, td.dataset.competitionName);
+        } else {
+          const row = filterIcon.closest("tr");
+          setFilter("course", row.dataset.courseId, row.dataset.courseName);
+        }
         return;
       }
       const courseCell = e.target.closest("td.course[data-course-id]");
@@ -637,7 +640,7 @@
       }
       const compCell = e.target.closest("td.competition[data-competition-id]");
       if (compCell) {
-        setFilter("competition", compCell.dataset.competitionId, compCell.dataset.competitionName);
+        window.open("https://discgolfmetrix.com/" + compCell.dataset.competitionId, "_blank");
       }
     });
 
@@ -772,8 +775,9 @@
         const dc = diffClass(r.diff);
         const esc = s => String(s).replace(/"/g, "&quot;");
         const filterIcon = activeFilter ? "" : `<span class="filter-icon" title="Filtreeri selle raja järgi">⊕</span>`;
+        const compFilterIcon = activeFilter ? "" : `<span class="filter-icon" title="Filtreeri selle võistluse järgi">⊕</span>`;
         const courseCell = `<td class="course" data-course-id="${esc(r.courseID)}">${r.course}${filterIcon}</td>`;
-        const compCell = `<td class="competition" data-competition-id="${esc(r.competitionID)}" data-competition-name="${esc(r.name)}" title="${esc(r.name)}">${r.name}</td>`;
+        const compCell = `<td class="competition" data-competition-id="${esc(r.competitionID)}" data-competition-name="${esc(r.name)}" title="${esc(r.name)}">${r.name}${compFilterIcon}</td>`;
         return `<tr data-course-id="${esc(r.courseID)}" data-course-name="${esc(r.course)}">
           <td>${r.date}</td>
           ${compCell}
