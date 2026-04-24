@@ -351,7 +351,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.31 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.32 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const CACHE_KEY = "metrix_rounds_cache_v3";
@@ -549,11 +549,11 @@
                 const grh = Number(h.GRH), icp = Number(h.ICP), ibp = Number(h.IBP), ocp = Number(h.OCP);
                 if (grh === 1) return icp >= 2;
                 if (h._par === null) return false;
-                return parseInt(h.Result, 10) === h._par && ibp === 0 && ocp === 0 && icp >= 1;
+                return parseInt(h.Result, 10) === h._par && ocp === 0 && icp >= 1;
               });
               parSaved = parHoles.filter(h => {
                 const grh = Number(h.GRH), icp = Number(h.ICP), ibp = Number(h.IBP);
-                return grh === 1 ? (icp === 2 && ibp === 0) : icp === 1;
+                return grh === 1 ? (icp === 2 && ibp === 0) : (icp === 1 && ibp === 0);
               }).length;
             }
 
