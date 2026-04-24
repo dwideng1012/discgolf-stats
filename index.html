@@ -501,10 +501,10 @@
 
             console.log("VALID:", id, data.Competition?.Date, "diff:", player.Diff);
 
-            // Detect whether Metrix stats were actually collected for this round
-            // Check field presence (non-empty string), not non-zero values —
-            // a round with no GRH/C1 putts but stats collected would have "0" fields, not "".
-            const hasStats = validHoles.some(h =>
+            // Detect whether Metrix stats were actually collected for this round.
+            // MetrixMode="0" means stats were never tracked (all fields are "0", not "").
+            // Field presence check ("0" !== "") would give a false positive — guard with MetrixMode first.
+            const hasStats = data.Competition?.MetrixMode !== "0" && validHoles.some(h =>
               h.GRH !== "" || h.ICP !== "" || h.IBP !== ""
             );
 
