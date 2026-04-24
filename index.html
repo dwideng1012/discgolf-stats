@@ -196,18 +196,19 @@
     td.good { color: var(--green); }
     td.bad  { color: var(--red); }
     td.zero { color: var(--muted); }
-    td.course, td.competition { color: var(--accent); font-size: 0.8rem; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+    td.course, td.competition { color: var(--accent); font-size: 0.8rem; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; position: relative; padding-right: 18px; }
     td.course:hover, td.competition:hover { text-decoration: underline; }
     td.course .filter-icon, td.competition .filter-icon {
-      display: inline-block;
+      position: absolute;
+      right: 2px;
+      top: 50%;
+      transform: translateY(-50%);
       opacity: 0;
       color: var(--muted);
       font-size: 0.85rem;
       cursor: pointer;
       transition: opacity 0.1s, color 0.1s;
-      margin-left: 5px;
       user-select: none;
-      vertical-align: middle;
     }
     tr:hover td.course .filter-icon, tr:hover td.competition .filter-icon { opacity: 1; }
     td.course .filter-icon:hover, td.competition .filter-icon:hover { color: var(--accent); }
