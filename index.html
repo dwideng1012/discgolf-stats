@@ -501,9 +501,10 @@
             console.log("VALID:", id, data.Competition?.Date, "diff:", player.Diff);
 
             // Detect whether Metrix stats were actually collected for this round
+            // Check field presence (non-empty string), not non-zero values —
+            // a round with no GRH/C1 putts but stats collected would have "0" fields, not "".
             const hasStats = validHoles.some(h =>
-              Number(h.GRH) > 0 || Number(h.BUE) > 0 ||
-              Number(h.ICP) > 0 || Number(h.IBP) > 0
+              h.GRH !== "" || h.ICP !== "" || h.IBP !== ""
             );
 
             // Always calculated (all rounds)
@@ -533,28 +534,31 @@
               icpTotal = icpHoles.reduce((s, h) => s + Number(h.ICP), 0);
               icpMade  = icpHoles.filter(h => Number(h.IBP) === 0).length;
 
-              // Birdie putiprotsent: GRH=1 ja ICP>=1; made=ICP=1 ja IBP=0
+              // Birdie putiprotsent: GRH=1, ICP>=1, ei ace, ei trahvi; made=ICP=1 ja IBP=0
               birdieHoles = validHoles.filter(h =>
                 h.Result !== "1" && h.ICP !== "" &&
-                Number(h.GRH) === 1 && Number(h.ICP) >= 1
+                Number(h.GRH) === 1 && Number(h.ICP) >= 1 &&
+                Number(h.PEN) === 0
               );
               birdieMade = birdieHoles.filter(h =>
                 Number(h.ICP) === 1 && Number(h.IBP) === 0
               ).length;
 
               // PAR putiprotsent
+              // Juht A (GRH=1): birdie miss → par putt. Tingimus: icp>=2, ei ace, ei PEN.
+              // Juht B (GRH=0): scramble par save. Tingimus: icp>=1, Diff=0 (made) või Diff=1 (miss).
+              // OCP-d ei välistata — mängija võis enne C2 proovida (legitiimne).
+              // Made mõlemal juhul: Diff===0.
               parHoles = validHoles.filter(h => {
                 if (h.Result === "1") return false;
                 if (h.ICP === "") return false;
-                const grh = Number(h.GRH), icp = Number(h.ICP), ibp = Number(h.IBP), ocp = Number(h.OCP);
+                if (Number(h.PEN) > 0) return false;
+                const grh = Number(h.GRH), icp = Number(h.ICP), diff = Number(h.Diff);
                 if (grh === 1) return icp >= 2;
-                if (h._par === null) return false;
-                return parseInt(h.Result, 10) === h._par && ocp === 0 && icp >= 1;
+                if (icp < 1) return false;
+                return diff === 0 || diff === 1;
               });
-              parSaved = parHoles.filter(h => {
-                const grh = Number(h.GRH), icp = Number(h.ICP), ibp = Number(h.IBP);
-                return grh === 1 ? (icp === 2 && ibp === 0) : (icp === 1 && ibp === 0);
-              }).length;
+              parSaved = parHoles.filter(h => Number(h.Diff) === 0).length;
             }
 
             rounds.push({
