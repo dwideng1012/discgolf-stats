@@ -356,7 +356,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.34 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.35 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const CACHE_KEY = "metrix_rounds_cache_v3";
@@ -511,11 +511,12 @@
 
             console.log("VALID:", id, data.Competition?.Date, "diff:", player.Diff);
 
-            // Detect whether Metrix stats were actually collected for this round.
-            // MetrixMode="0" means stats were never tracked (all fields are "0", not "").
-            // Field presence check ("0" !== "") would give a false positive — guard with MetrixMode first.
-            const hasStats = data.Competition?.MetrixMode !== "0" && validHoles.some(h =>
-              h.GRH !== "" || h.ICP !== "" || h.IBP !== ""
+            // Stats were collected only if at least one hole has a meaningful value (> 0).
+            // Checking for non-empty string ("0" !== "") gives a false positive for rounds
+            // where MetrixMode="1" but no stats were entered (all fields are "0").
+            const hasStats = validHoles.some(h =>
+              Number(h.GRH) > 0 || Number(h.BUE) > 0 ||
+              Number(h.ICP) > 0 || Number(h.IBP) > 0 || Number(h.OCP) > 0
             );
 
             // Always calculated (all rounds)
@@ -742,8 +743,8 @@
       const parSvd     = sumR(statsRounds, "parSaved");
       const birdOpp    = sumR(statsRounds, "birdieOpportunities");
       const birdMade   = sumR(statsRounds, "birdieMade");
-      // OCP and PEN from all rounds
-      const ocpSum     = sumR(chrono, "ocpTotal");
+      // OCP only from stats rounds (field is 0 in non-stats rounds, would dilute average)
+      const ocpSum     = sumR(statsRounds, "ocpTotal");
       const penSum     = sumR(chrono, "penTotal");
 
       const baseCards = activeFilter ? [
@@ -766,7 +767,7 @@
       const statCards = [
         { label: "GRH%",             value: pct(grhSum, totalHoles),  cls: "neutral", sub: ns + "/" + n + " ringist" },
         { label: "BUE%",             value: pct(bueSum, totalHoles),  cls: "neutral", sub: ns + "/" + n + " ringist" },
-        { label: "OCP",              value: avgFmt(ocpSum, n),         cls: "neutral", sub: n + " ringist" },
+        { label: "OCP",              value: avgFmt(ocpSum, ns),        cls: "neutral", sub: ns + "/" + n + " ringist" },
         { label: "Trahvid",          value: avgFmt(penSum, n),         cls: penAvg > 0 ? "bad" : "neutral", sub: n + " ringist" },
         { label: "Putiprotsent",     value: pct(puttH, puttT),        cls: "neutral", sub: ns + "/" + n + " ringist" },
         { label: "ICP putiprot.",    value: pct(icpMadeSum, icpAtt),  cls: "neutral", sub: icpAtt + " katset" },
