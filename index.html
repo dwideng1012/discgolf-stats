@@ -196,8 +196,11 @@
     td.good { color: var(--green); }
     td.bad  { color: var(--red); }
     td.zero { color: var(--muted); }
-    td.course, td.competition { color: var(--accent); font-size: 0.8rem; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; position: relative; padding-right: 18px; }
-    td.course:hover, td.competition:hover { text-decoration: underline; }
+    td.course, td.competition { color: var(--accent); font-size: 0.8rem; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; position: relative; padding-right: 18px; }
+    td.course:hover { text-decoration: underline; }
+    .name-part { cursor: pointer; }
+    .name-part:hover { text-decoration: underline; }
+    .name-sep { color: var(--muted); pointer-events: none; }
     td.course .filter-icon, td.competition .filter-icon {
       position: absolute;
       right: 2px;
@@ -356,7 +359,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.36 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.37 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const CACHE_KEY = "metrix_rounds_cache_v3";
@@ -607,6 +610,7 @@
             rounds.push({
               date:          data.Competition.Date || "",
               name:          data.Competition.Name || "",
+              nameParts:     (data.Competition.Name || "").split(" - ").map(s => s.trim()).filter(Boolean),
               competitionID: data.Competition.ID || null,
               course:        data.Competition.CourseName || data.Competition.Name || "",
               courseID:      data.Competition.CourseID || null,
@@ -665,26 +669,30 @@
     }
 
     let allRounds = [];
-    let activeFilter = null; // {type:'course'|'competition', id, name} or null
+    let activeFilter = null; // {type:'course'|'prefix', id?, parts?, name} or null
 
-    // Event delegation: course/competition name → open Metrix; filter icon → set filter
+    // Event delegation
     document.getElementById("roundsBody").addEventListener("click", function(e) {
-      const filterIcon = e.target.closest(".filter-icon");
-      if (filterIcon) {
-        const td = filterIcon.closest("td");
-        if (td.classList.contains("competition")) {
-          setFilter("competition", td.dataset.competitionId, td.dataset.competitionName);
-        } else {
-          const row = filterIcon.closest("tr");
-          setFilter("course", row.dataset.courseId, row.dataset.courseName);
-        }
+      // Name-part click → hierarchical prefix filter
+      const namePart = e.target.closest(".name-part");
+      if (namePart) {
+        setPrefixFilter(JSON.parse(namePart.dataset.parts));
         return;
       }
+      // Course filter icon → course filter
+      const filterIcon = e.target.closest(".filter-icon");
+      if (filterIcon) {
+        const row = filterIcon.closest("tr");
+        setFilter("course", row.dataset.courseId, row.dataset.courseName);
+        return;
+      }
+      // Course cell → open Metrix course page
       const courseCell = e.target.closest("td.course[data-course-id]");
       if (courseCell) {
         window.open("https://discgolfmetrix.com/course/" + courseCell.dataset.courseId, "_blank");
         return;
       }
+      // Competition cell (not on a name-part) → open Metrix competition page
       const compCell = e.target.closest("td.competition[data-competition-id]");
       if (compCell) {
         window.open("https://discgolfmetrix.com/" + compCell.dataset.competitionId, "_blank");
@@ -710,6 +718,11 @@
       renderView();
     }
 
+    function setPrefixFilter(parts) {
+      activeFilter = { type: "prefix", parts, name: parts.join(" › ") };
+      renderView();
+    }
+
     function clearFilter() {
       activeFilter = null;
       renderView();
@@ -729,8 +742,8 @@
     function renderView() {
       const filtered = activeFilter
         ? allRounds.filter(r =>
-            activeFilter.type === "competition"
-              ? String(r.competitionID) === activeFilter.id
+            activeFilter.type === "prefix"
+              ? activeFilter.parts.every((p, i) => (r.nameParts || [])[i] === p)
               : String(r.courseID) === activeFilter.id
           )
         : allRounds;
@@ -822,9 +835,14 @@
         const dc = diffClass(r.diff);
         const esc = s => String(s).replace(/"/g, "&quot;");
         const filterIcon = activeFilter ? "" : `<span class="filter-icon" title="Filtreeri selle raja järgi">⊕</span>`;
-        const compFilterIcon = activeFilter ? "" : `<span class="filter-icon" title="Filtreeri selle võistluse järgi">⊕</span>`;
         const courseCell = `<td class="course" data-course-id="${esc(r.courseID)}">${r.course}${filterIcon}</td>`;
-        const compCell = `<td class="competition" data-competition-id="${esc(r.competitionID)}" data-competition-name="${esc(r.name)}" title="${esc(r.name)}">${r.name}${compFilterIcon}</td>`;
+        const parts = r.nameParts && r.nameParts.length ? r.nameParts : [r.name];
+        const compContent = activeFilter
+          ? esc(r.name)
+          : parts.map((part, i) =>
+              `<span class="name-part" data-parts='${JSON.stringify(parts.slice(0, i + 1))}' title="Filtreeri: ${esc(parts.slice(0, i + 1).join(" › "))}">${esc(part)}</span>`
+            ).join('<span class="name-sep"> › </span>');
+        const compCell = `<td class="competition" data-competition-id="${esc(r.competitionID)}" title="${esc(r.name)}">${compContent}</td>`;
         return `<tr data-course-id="${esc(r.courseID)}" data-course-name="${esc(r.course)}">
           <td>${r.date}</td>
           ${compCell}
