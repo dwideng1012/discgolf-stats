@@ -352,7 +352,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.32 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.33 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const CACHE_KEY = "metrix_rounds_cache_v3";
@@ -436,8 +436,9 @@
 
         const BATCH = 5;
         const rounds = [];
-        let myUserID = null;
-        let myPlayerName = null;
+        const _savedUser = (() => { try { return JSON.parse(localStorage.getItem("metrix_user_id") || "null"); } catch (e) { return null; } })();
+        let myUserID = _savedUser?.code === code ? String(_savedUser.userId) : null;
+        let myPlayerName = _savedUser?.code === code ? (_savedUser.playerName || null) : null;
 
         for (let i = 0; i < toFetch.length; i += BATCH) {
           const batch = toFetch.slice(i, i + BATCH);
@@ -461,13 +462,14 @@
               continue;
             }
 
-            // Find candidate: use stored myUserID if known, else tentatively try Results[0]
+            // Find candidate: use stored myUserID if known; on first discovery, only trust Results[0]
+            // in small competitions (≤5 players) — large comps sort by place so Results[0] is the winner
             console.log("myUserID:", myUserID, "looking in:", compResults.map(r => r.UserID));
             const candidate = myUserID
               ? compResults.find(r => String(r.UserID) === String(myUserID))
-              : compResults[0];
+              : compResults.length <= 5 ? compResults[0] : null;
             if (!candidate) {
-              console.log("player not found, skip");
+              console.log(myUserID ? "player not found, skip" : "large comp, UserID unknown, skip");
               continue;
             }
 
@@ -497,6 +499,7 @@
             if (!myUserID) {
               myUserID = String(player.UserID);
               myPlayerName = player.Name || null;
+              localStorage.setItem("metrix_user_id", JSON.stringify({ userId: myUserID, playerName: myPlayerName, code }));
             }
 
             console.log("VALID:", id, data.Competition?.Date, "diff:", player.Diff);
