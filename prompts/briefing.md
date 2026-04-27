@@ -146,4 +146,3 @@ Nii ei saa keegi tulevikus seda algoritmi kogemata uuesti rikkuda.
 ---
 
 ## Pending tasks
-

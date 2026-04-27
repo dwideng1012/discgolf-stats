@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.37 (2026-04-27) — Adaptiivne hierarhiline võistlusfilter
+
+Competition.Name split " - " järgi → `nameParts` massiiv. Tabelis iga osa
+on eraldi klikitav span: klikk seab prefiksfiltri. Adaptiivne — töötab
+suvalise sügavusega hierarhiaga (2–4+ taset).
+
+Filter tüübid: `course` (raja järgi) + `prefix` (nimeprefiksi järgi).
+Competition filter-icon eemaldatud (asendatud name-part klikkidega).
+
+---
+
 ## v1.36 (2026-04-27) — Automaatne ristkontroll iga ringi pealt
 
 Iga laetud ring valideeritakse API kogusummade vastu. Mismatch logitakse:
