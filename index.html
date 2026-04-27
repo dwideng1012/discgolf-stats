@@ -283,6 +283,10 @@
       <input type="text" id="apiCode" value="" autocomplete="off" spellcheck="false" placeholder="sisesta API kood">
     </div>
     <div class="field">
+      <label>UserID</label>
+      <input type="text" id="userID" autocomplete="off" spellcheck="false" placeholder="nt 2821">
+    </div>
+    <div class="field">
       <label>Ringe</label>
       <div style="display:flex;gap:6px;align-items:center">
         <select id="countSelect">
@@ -352,7 +356,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.33 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.34 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const CACHE_KEY = "metrix_rounds_cache_v3";
@@ -380,6 +384,8 @@
     });
 
     const savedCode = localStorage.getItem("metrix_api_code");
+    const _savedUserInit = (() => { try { return JSON.parse(localStorage.getItem("metrix_user_id") || "null"); } catch (e) { return null; } })();
+    if (_savedUserInit?.userId) document.getElementById("userID").value = _savedUserInit.userId;
     if (savedCode) {
       document.getElementById("apiCode").value = savedCode;
       try {
@@ -434,11 +440,19 @@
         // Fetch ALL IDs (newest first); valid rounds are sliced to count after filtering
         const toFetch = [...allIds].reverse();
 
+        const inputUserID = document.getElementById("userID").value.trim();
+        if (!inputUserID) {
+          showError("Palun sisesta oma UserID (leiad Discgolf Metrix profiililt).");
+          document.getElementById("progressWrap").style.display = "none";
+          document.getElementById("loadBtn").disabled = false;
+          return;
+        }
+
         const BATCH = 5;
         const rounds = [];
         const _savedUser = (() => { try { return JSON.parse(localStorage.getItem("metrix_user_id") || "null"); } catch (e) { return null; } })();
-        let myUserID = _savedUser?.code === code ? String(_savedUser.userId) : null;
-        let myPlayerName = _savedUser?.code === code ? (_savedUser.playerName || null) : null;
+        let myUserID = inputUserID;
+        let myPlayerName = _savedUser?.userId === inputUserID ? (_savedUser.playerName || null) : null;
 
         for (let i = 0; i < toFetch.length; i += BATCH) {
           const batch = toFetch.slice(i, i + BATCH);
@@ -462,14 +476,9 @@
               continue;
             }
 
-            // Find candidate: use stored myUserID if known; on first discovery, only trust Results[0]
-            // in small competitions (≤5 players) — large comps sort by place so Results[0] is the winner
-            console.log("myUserID:", myUserID, "looking in:", compResults.map(r => r.UserID));
-            const candidate = myUserID
-              ? compResults.find(r => String(r.UserID) === String(myUserID))
-              : compResults.length <= 5 ? compResults[0] : null;
+            const candidate = compResults.find(r => String(r.UserID) === String(myUserID));
             if (!candidate) {
-              console.log(myUserID ? "player not found, skip" : "large comp, UserID unknown, skip");
+              console.log("player not found in round", id, "skip");
               continue;
             }
 
@@ -494,12 +503,10 @@
             }, []);
             if (validHoles.length === 0) continue;
 
-            // Round is valid — lock in myUserID from the first valid round only
             const player = candidate;
-            if (!myUserID) {
-              myUserID = String(player.UserID);
-              myPlayerName = player.Name || null;
-              localStorage.setItem("metrix_user_id", JSON.stringify({ userId: myUserID, playerName: myPlayerName, code }));
+            if (!myPlayerName && player.Name) {
+              myPlayerName = player.Name;
+              localStorage.setItem("metrix_user_id", JSON.stringify({ userId: myUserID, playerName: myPlayerName }));
             }
 
             console.log("VALID:", id, data.Competition?.Date, "diff:", player.Diff);
