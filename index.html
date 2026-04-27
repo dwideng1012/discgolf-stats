@@ -362,10 +362,12 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.38 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.39 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
-    const CACHE_KEY = "metrix_rounds_cache_v3";
+    const CACHE_KEY = "metrix_rounds_cache_v4";
+
+    const splitName = s => (s || "").split(/\s*\u2192\s*|\s*\u203a\s*|\s+-\s+/).map(x => x.trim()).filter(Boolean);
     const CACHE_TTL = 3600000; // 60 minutes
 
     let allRoundsCache = []; // all valid rounds from last fetch
@@ -613,7 +615,7 @@
             rounds.push({
               date:          data.Competition.Date || "",
               name:          data.Competition.Name || "",
-              nameParts:     (data.Competition.Name || "").split(" - ").map(s => s.trim()).filter(Boolean),
+              nameParts:     splitName(data.Competition.Name),
               competitionID: data.Competition.ID || null,
               course:        data.Competition.CourseName || data.Competition.Name || "",
               courseID:      data.Competition.CourseID || null,
@@ -748,7 +750,7 @@
             if (activeFilter.type === "prefix") {
               const rParts = r.nameParts && r.nameParts.length
                 ? r.nameParts
-                : (r.name || "").split(" - ").map(s => s.trim()).filter(Boolean);
+                : splitName(r.name);
               return activeFilter.parts.every((p, i) => rParts[i] === p);
             }
             return String(r.courseID) === activeFilter.id;
@@ -845,7 +847,7 @@
         const courseCell = `<td class="course" data-course-id="${esc(r.courseID)}">${r.course}${filterIcon}</td>`;
         const parts = r.nameParts && r.nameParts.length
           ? r.nameParts
-          : (r.name || "").split(" - ").map(s => s.trim()).filter(Boolean);
+          : splitName(r.name);
         const compContent = activeFilter
           ? esc(r.name)
           : parts.map((part, i) => {
