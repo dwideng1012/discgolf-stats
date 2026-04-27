@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.35 (2026-04-27) — Paranda hasStats valem ja OCP statistikaringid
+
+**Probleem:** GRH%, BUE%, OCP, Putiprotsent, ICP putiprotsent arvestasid sisse
+ringe kus statistikat polnud registreeritud (esimesed kolm Palivere võistlust).
+
+**Juurpõhjus:** `hasStats` kasutas `h.GRH !== ""` kontrolli — kuna `"0" !== ""` on true,
+loeti MetrixMode="1" aga kõik-nullid ringid statsiga ringideks. Skill kasutab
+`Number(h.GRH) > 0 || ...` kontrolli (tegelik väärtus peab olema > 0).
+
+OCP kasutab nüüd `statsRounds` allikana (mitte kõiki ringe), divisoriks `ns`.
+
+**Muudatused:**
+- `hasStats`: `h.GRH !== ""` → `Number(h.GRH) > 0 || Number(h.BUE) > 0 || ...`
+- `ocpSum`: `sumR(chrono, "ocpTotal")` → `sumR(statsRounds, "ocpTotal")`
+- OCP kaart: divisor `n` → `ns`, sub `n + " ringist"` → `ns + "/" + n + " ringist"`
+
+---
+
 ## v1.34 (2026-04-27) — UserID sisestusväli
 
 **Probleem:** Vale mängija valiti suurtest võistlustest (EDGL Pro Karikasari, 50+ mängijat).
