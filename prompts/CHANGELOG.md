@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.36 (2026-04-27) — Automaatne ristkontroll iga ringi pealt
+
+Iga laetud ring valideeritakse API kogusummade vastu. Mismatch logitakse:
+`console.warn("Stats mismatch round", id, { metric, calc, api })`
+
+Kontrollitakse: Sum, GRH%, BUE%, ICP%, IBP count, OCP count.
+Tolerants: 1 protsendipunkt. Vaikselt PASSis ringid ei logi midagi.
+
+---
+
 ## v1.35 (2026-04-27) — Paranda hasStats valem ja OCP statistikaringid
 
 **Probleem:** GRH%, BUE%, OCP, Putiprotsent, ICP putiprotsent arvestasid sisse

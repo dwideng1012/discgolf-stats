@@ -147,12 +147,3 @@ Nii ei saa keegi tulevikus seda algoritmi kogemata uuesti rikkuda.
 
 ## Pending tasks
 
-### 1. Lisa automaatne ristkontroll iga laetud ringi pealt
-
-Lisa `index.html`-i sama loogika nagu `discgolf-metrix-stats/scripts/metrix-stats.js` `validateRound` funktsioonis. Iga ringi laadimisel:
-
-- Arvuta `GRH%`, `BUE%`, `ICP%` augupõhiselt
-- Võrdle API kogusummadega (`player.GRHTotal`, `BUETotal`, `ICPTotal`) — parsi protsentnumbriks (nt `"28%"` → `28`)
-- Kui erinevus üle 1 protsendipunkti, logi `console.warn("Stats mismatch round", id, { metric, calc, api })`
-- Kontrolli ka: `IBP count` (parseInt `IBPTotal`), `OCP count` (parseInt `OCPTotal`), `Sum`
-- Vaikselt PASSis ringid ei vaja midagi
