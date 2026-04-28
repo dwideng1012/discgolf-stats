@@ -362,7 +362,7 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.40 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.41 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
     const CACHE_KEY = "metrix_rounds_cache_v5";
@@ -584,10 +584,12 @@
                 if (h.Result === "1") return false;
                 if (h.ICP === "") return false;
                 if (Number(h.PEN) > 0) return false;
-                const grh = Number(h.GRH), icp = Number(h.ICP), diff = Number(h.Diff);
-                if (grh === 1) return icp >= 2;
+                const grh = Number(h.GRH), icp = Number(h.ICP), ibp = Number(h.IBP), diff = Number(h.Diff);
                 if (icp < 1) return false;
-                return diff === 0 || diff === 1;
+                if (grh === 1) return icp >= 2;
+                if (diff === 0) return ibp === 0;
+                if (diff === 1) return ibp === 1 || icp >= 2;
+                return false;
               });
               parSaved = parHoles.filter(h => Number(h.Diff) === 0).length;
             }

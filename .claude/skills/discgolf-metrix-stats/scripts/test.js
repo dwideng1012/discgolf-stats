@@ -127,9 +127,9 @@ assert("Birdie putt opps", r1.birdiePutting.opps === 3, 3, r1.birdiePutting.opps
 assert("Birdie putt made", r1.birdiePutting.made === 1, 1, r1.birdiePutting.made);
 assertClose("Birdie putting %", 33.33, r1.birdiePutting.pct);
 
-assert("Par putt opps", r1.parPutting.opps === 4, 4, r1.parPutting.opps);
+assert("Par putt opps", r1.parPutting.opps === 3, 3, r1.parPutting.opps);
 assert("Par putt made", r1.parPutting.made === 2, 2, r1.parPutting.made);
-assertClose("Par putting %", 50.0, r1.parPutting.pct);
+assertClose("Par putting %", 66.67, r1.parPutting.pct);
 
 assert("Scramble opps", r1.scramble.opps === 13, 13, r1.scramble.opps);
 assert("Scramble saved", r1.scramble.saved === 11, 11, r1.scramble.saved);
@@ -422,6 +422,35 @@ assert("OCP attempt", r10.c2.attempts === 1, 1, r10.c2.attempts);
 assert("OCP made = 0 (had ICP after)", r10.c2.made === 0, 0, r10.c2.made);
 assert("Scramble opp", r10.scramble.opps === 1, 1, r10.scramble.opps);
 assert("Scramble not saved", r10.scramble.saved === 0, 0, r10.scramble.saved);
+
+// ============================================================
+// Test 12: GRH=0, ICP=1, IBP=0, Diff=+1 — EI OLE par putt opp
+// Mängija jõudis C1-sse liiga hilja, tegi ühe putti mis läks sisse,
+// aga tulemus on bogey (approach play määras). Ei loeta par putt miss'iks.
+// ============================================================
+
+console.log("\n=== Test 12: GRH=0,ICP=1,IBP=0,Diff=+1 ei ole par putt opp ===");
+
+const lateC1Bogey = {
+  ID: 1009,
+  Tracks: [{ Par: "4" }],
+  Results: [
+    {
+      UserID: "900",
+      PlayerResults: [
+        { Result: "5", Diff: 1, GRH: "0", BUE: "0", OCP: "0", ICP: "1", IBP: "0", PEN: "0" },
+      ],
+      Sum: 5, Diff: 1,
+      GRHTotal: "0%", BUETotal: "0%", ICPTotal: "100%", IBPTotal: "0", OCPTotal: "0", PenaltiesTotal: "0",
+    },
+  ],
+};
+
+const r12 = stats.computeRoundStats(lateC1Bogey, "900");
+assert("GRH=0,ICP=1,IBP=0,Diff=+1: opps=0", r12.parPutting.opps === 0, 0, r12.parPutting.opps);
+assert("GRH=0,ICP=1,IBP=0,Diff=+1: made=0", r12.parPutting.made === 0, 0, r12.parPutting.made);
+assert("C1 attempt still counted", r12.c1.attempts === 1, 1, r12.c1.attempts);
+assert("C1 made=1 (IBP=0)", r12.c1.made === 1, 1, r12.c1.made);
 
 // ============================================================
 // Test 11: Aggregation across rounds

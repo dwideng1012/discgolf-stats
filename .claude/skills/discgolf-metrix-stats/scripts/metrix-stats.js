@@ -109,8 +109,12 @@ function isParPuttOpp(h) {
   if (grh === 1) {
     return icp >= 2;
   } else {
-    if (diff === 0) return true;
-    if (diff === 1) return true;
+    // Juht B: GRH=0, scramble par save
+    // Made: C1 putt läks sisse (IBP=0) ja tulemus on par (Diff=0)
+    if (diff === 0) return num(h.IBP) === 0;
+    // Miss: kas C1 putt missis (IBP=1 → tap-in bogey), või 2+ C1 katset (bogey)
+    // EI loe: ICP=1, IBP=0, Diff=+1 — putt läks sisse aga approach play = bogey
+    if (diff === 1) return num(h.IBP) === 1 || icp >= 2;
     return false;
   }
 }
