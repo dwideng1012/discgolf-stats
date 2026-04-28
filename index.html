@@ -362,12 +362,23 @@
 
   <script>
     document.getElementById("version").textContent =
-      "v1.39 \u00b7 " + new Date().toISOString().slice(0, 10);
+      "v1.40 \u00b7 " + new Date().toISOString().slice(0, 10);
     const API = "https://discgolfmetrix.com/api.php";
 
-    const CACHE_KEY = "metrix_rounds_cache_v4";
+    const CACHE_KEY = "metrix_rounds_cache_v5";
 
-    const splitName = s => (s || "").split(/\s*\u2192\s*|\s*\u203a\s*|\s+-\s+/).map(x => x.trim()).filter(Boolean);
+    function decodeEntities(s) {
+      return (s || "")
+        .replace(/&rarr;/gi, "\u2192")
+        .replace(/&rsaquo;/gi, "\u203a")
+        .replace(/&amp;/gi, "&")
+        .replace(/&nbsp;/gi, " ");
+    }
+
+    const splitName = s => decodeEntities(s)
+      .split(/\s*[\u2192\u203a]\s*|\s+-\s+/)
+      .map(x => x.trim())
+      .filter(Boolean);
     const CACHE_TTL = 3600000; // 60 minutes
 
     let allRoundsCache = []; // all valid rounds from last fetch
@@ -849,14 +860,14 @@
           ? r.nameParts
           : splitName(r.name);
         const compContent = activeFilter
-          ? esc(r.name)
+          ? esc(decodeEntities(r.name))
           : parts.map((part, i) => {
               const prefix = JSON.stringify(parts.slice(0, i + 1));
               const indentStyle = i > 0 ? ` style="padding-left:${i * 0.8}em"` : "";
               const icon = `<span class="comp-fi" data-parts='${prefix}' title="Filtreeri: ${esc(parts.slice(0,i+1).join(" › "))}">⊕</span>`;
               return `<div${indentStyle}>${icon}${esc(part)}</div>`;
             }).join("");
-        const compCell = `<td class="competition" data-competition-id="${esc(r.competitionID)}" title="${esc(r.name)}">${compContent}</td>`;
+        const compCell = `<td class="competition" data-competition-id="${esc(r.competitionID)}" title="${esc(decodeEntities(r.name))}">${compContent}</td>`;
         return `<tr data-course-id="${esc(r.courseID)}" data-course-name="${esc(r.course)}">
           <td>${r.date}</td>
           ${compCell}
